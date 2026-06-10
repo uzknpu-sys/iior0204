@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IIOR 0204 — Integrity Development | Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap&subset=cyrillic" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --navy:#0b2d4f; --navy-deep:#071e36; --paper:#f7f8f9; --ink:#1a2530; --muted:#5b6b7a;
+  --line:#d8dee4; --card:#ffffff;
+  --green:#1a8a4a; --green-bg:#e7f5ec;
+  --amber:#d98e00; --amber-bg:#fdf3e0;
+  --red:#c8372d; --red-bg:#fbe9e7;
+  --grey:#6b7682; --grey-bg:#eef1f3;
+  --none:#aeb8c2; --none-bg:#f1f3f5;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+/* ── AUTH SCREEN ── */
+#auth-screen{position:fixed;inset:0;background:var(--navy-deep);display:flex;align-items:center;justify-content:center;z-index:100}
+#auth-screen.hide{display:none}
+.auth-box{background:#fff;border-radius:12px;padding:40px 44px;width:100%;max-width:420px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.auth-logo{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.auth-box h2{font-size:22px;font-weight:700;color:var(--navy-deep);margin-bottom:28px;line-height:1.25}
+.auth-box label{display:block;font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:5px;margin-top:16px}
+.auth-box input{width:100%;border:1.5px solid var(--line);border-radius:7px;padding:10px 13px;font-size:14px;font-family:var(--sans);color:var(--ink);transition:border-color .15s}
+.auth-box input:focus{outline:none;border-color:var(--navy)}
+.auth-btn{width:100%;background:var(--navy);color:#fff;border:0;border-radius:7px;padding:12px;font-size:15px;font-weight:600;font-family:var(--sans);cursor:pointer;margin-top:24px;transition:background .15s}
+.auth-btn:hover{background:#0e3a66}
+.auth-err{color:var(--red);font-size:13px;margin-top:12px;min-height:18px;font-family:var(--mono)}
+
+/* ── HEADER ── */
+header{background:var(--navy-deep);color:#fff;border-bottom:4px solid var(--amber)}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:26px 0 22px;flex-wrap:wrap}
+.hd-id{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:#9fb6cc;text-transform:uppercase;margin-bottom:8px}
+.hd h1{font-size:clamp(18px,2.4vw,25px);font-weight:700;line-height:1.25;max-width:700px}
+.hd .sub{color:#b8c8d8;font-size:13px;margin-top:8px;max-width:680px}
+.hd-ctrl{display:flex;gap:8px;align-items:center;flex-shrink:0;margin-top:4px;flex-wrap:wrap}
+.lang{display:flex;border:1px solid #3d5a78;border-radius:6px;overflow:hidden}
+.lang button{background:transparent;color:#9fb6cc;border:0;padding:7px 14px;font-family:var(--mono);font-size:12.5px;cursor:pointer}
+.lang button.on{background:#fff;color:var(--navy-deep);font-weight:600}
+.btn{font-family:var(--mono);font-size:12px;letter-spacing:.05em;border:1px solid #3d5a78;color:#cdd9e4;background:transparent;border-radius:6px;padding:7px 12px;cursor:pointer}
+.btn:hover{background:rgba(255,255,255,.08)}
+.btn.danger{border-color:#c87;color:#f4b8a8}
+.btn.danger:hover{background:rgba(200,80,60,.15)}
+
+/* ── USER BADGE ── */
+.user-badge{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid #3d5a78;border-radius:6px;padding:6px 12px}
+.user-badge .role-pill{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:2px 7px;font-weight:600}
+.role-pill.executor{background:rgba(26,138,74,.3);color:#6edb9a}
+.role-pill.reviewer{background:rgba(217,142,0,.3);color:#f5cd6b}
+.role-pill.superadmin{background:rgba(200,55,45,.3);color:#f4a09a}
+.user-badge .uname{font-size:12.5px;color:#cdd9e4;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── RIBBON ── */
+.ribbon-zone{background:var(--navy);padding:18px 0 22px}
+.ribbon-label{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8aa6c0;margin-bottom:10px}
+.ribbon{display:flex;gap:5px;flex-wrap:wrap}
+.rib{flex:1;min-width:46px;height:46px;border-radius:5px;cursor:pointer;position:relative;border:0;display:flex;align-items:center;justify-content:center;transition:transform .12s,box-shadow .12s}
+.rib:hover{transform:translateY(-3px);box-shadow:0 6px 14px rgba(0,0,0,.35)}
+.rib span{font-family:var(--mono);font-weight:600;font-size:13px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.rib .flag{position:absolute;top:3px;right:4px;font-size:10px}
+.rib.s-green{background:var(--green)} .rib.s-amber{background:var(--amber)} .rib.s-red{background:var(--red)}
+.rib.s-grey{background:var(--grey)} .rib.s-none{background:#324a63;border:1px dashed #5c7a96}
+.rib.s-none span{color:#8fa9c2}
+
+/* ── ROLE BANNER ── */
+.role-banner{padding:10px 0;font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+.role-banner.executor-b{background:var(--green-bg);color:var(--green);border-bottom:1px solid #b8dfc8}
+.role-banner.reviewer-b{background:var(--amber-bg);color:#9a6a00;border-bottom:1px solid #e8c96a}
+.role-banner.superadmin-b{background:#f0e8ff;color:#5a1e8a;border-bottom:1px solid #c8a8e8}
+
+/* ── SUMMARY ── */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:22px 0 6px}
+.sum{background:var(--card);border:1px solid var(--line);border-left-width:5px;border-radius:7px;padding:12px 14px;cursor:pointer;transition:box-shadow .12s}
+.sum:hover{box-shadow:0 3px 10px rgba(11,45,79,.1)}
+.sum.active{box-shadow:0 0 0 2px var(--navy)}
+.sum .n{font-family:var(--mono);font-size:26px;font-weight:600;line-height:1}
+.sum .t{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.3}
+.sum.green{border-left-color:var(--green)} .sum.green .n{color:var(--green)}
+.sum.amber{border-left-color:var(--amber)} .sum.amber .n{color:var(--amber)}
+.sum.red{border-left-color:var(--red)} .sum.red .n{color:var(--red)}
+.sum.grey{border-left-color:var(--grey)} .sum.grey .n{color:var(--grey)}
+.sum.none{border-left-color:var(--none)} .sum.none .n{color:var(--none)}
+.sum.total{border-left-color:var(--navy)} .sum.total .n{color:var(--navy)}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0 18px}
+.chip{font-size:12.5px;font-family:var(--mono);border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:18px;padding:6px 13px;cursor:pointer}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.chip.npu.on{background:var(--amber);border-color:var(--amber)}
+select.chip{appearance:none;padding-right:26px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235b6b7a'/%3E%3C/svg%3E") no-repeat right 10px center}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--line);border-radius:9px;margin-bottom:12px;overflow:hidden}
+.card-h{display:flex;gap:14px;padding:15px 18px;cursor:pointer;align-items:flex-start}
+.card-h:hover{background:#fbfcfd}
+.tag{font-family:var(--mono);font-weight:600;font-size:13px;color:#fff;border-radius:5px;min-width:46px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.t-green{background:var(--green)} .t-amber{background:var(--amber)} .t-red{background:var(--red)} .t-grey{background:var(--grey)} .t-none{background:var(--none)}
+.card-title{font-weight:600;font-size:14.5px;line-height:1.45}
+.card-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.pill{font-family:var(--mono);font-size:11px;border-radius:4px;padding:3px 8px;letter-spacing:.03em}
+.p-status{color:#fff} .p-dl{background:var(--grey-bg);color:var(--muted)}
+.p-dl.over{background:var(--red-bg);color:var(--red);font-weight:600}
+.p-lead{background:#e8eef5;color:var(--navy)} .p-npu{background:var(--amber-bg);color:#9a6a00;font-weight:600}
+.p-prog{background:var(--grey-bg);color:var(--ink)} .p-risk{background:var(--red-bg);color:var(--red)}
+.warn{font-size:12px;color:var(--red);margin-top:7px;font-weight:500}
+.comment-prev{font-size:12.5px;color:var(--muted);margin-top:7px;font-style:italic;border-left:3px solid var(--line);padding-left:9px}
+.progress{height:4px;background:var(--grey-bg)}
+.progress i{display:block;height:100%;background:var(--navy);transition:width .3s}
+.chev{margin-left:auto;color:var(--none);flex-shrink:0;transition:transform .2s;margin-top:6px}
+.card.open .chev{transform:rotate(180deg)}
+
+/* ── CARD BODY ── */
+.card-b{display:none;border-top:1px solid var(--line);padding:18px;background:#fcfdfe}
+.card.open .card-b{display:block}
+.sec{margin-bottom:16px}
+.sec h4{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--navy);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.sec h4::after{content:'';flex:1;height:1px;background:var(--line)}
+.sec .txt{font-size:13.5px;color:#2c3a47;white-space:pre-line;line-height:1.6}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.two{grid-template-columns:1fr}}
+
+/* ── SUBMISSIONS PANEL ── */
+.sub-panel{border:1px solid var(--line);border-radius:8px;background:#fff;padding:16px;margin-top:6px}
+.sub-panel h4{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--navy);margin-bottom:12px}
+.sub-tabs{display:flex;gap:0;margin-bottom:14px;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:fit-content}
+.sub-tab{font-family:var(--mono);font-size:12px;padding:7px 14px;cursor:pointer;background:#fff;color:var(--muted);border:0}
+.sub-tab.on{background:var(--navy);color:#fff}
+
+/* ── EDIT FORM ── */
+.edit{background:#f9fbfc;border:1px solid var(--line);border-radius:7px;padding:16px;margin-top:4px}
+.st-pick{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.stb{border:2px solid transparent;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+.stb.green{background:var(--green-bg);color:var(--green)} .stb.amber{background:var(--amber-bg);color:#9a6a00}
+.stb.red{background:var(--red-bg);color:var(--red)} .stb.grey{background:var(--grey-bg);color:var(--grey)}
+.stb.none{background:var(--none-bg);color:var(--muted)}
+.stb.sel.green{border-color:var(--green)} .stb.sel.amber{border-color:var(--amber)}
+.stb.sel.red{border-color:var(--red)} .stb.sel.grey{border-color:var(--grey)} .stb.sel.none{border-color:var(--none)}
+.frow{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.frow label{font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+input[type=range]{flex:1;min-width:160px;accent-color:var(--navy)}
+.pv{font-family:var(--mono);font-weight:600;min-width:46px;text-align:right}
+textarea,input[type=url]{width:100%;border:1px solid var(--line);border-radius:6px;padding:9px 11px;font-family:var(--sans);font-size:13.5px;margin-bottom:10px;background:#fff;color:var(--ink)}
+textarea{min-height:70px;resize:vertical}
+textarea:focus,input:focus{outline:2px solid var(--navy);outline-offset:-1px}
+.save-btn{background:var(--navy);color:#fff;border:0;border-radius:6px;padding:9px 20px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:var(--sans)}
+.save-btn:hover{background:#0e3a66}
+.save-btn:disabled{background:var(--grey);cursor:not-allowed}
+.sec-btn{background:#fff;color:var(--navy);border:1px solid var(--line);border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:var(--sans)}
+.sec-btn:hover{background:#f0f4f8}
+.saved-note{font-size:12px;color:var(--green);margin-left:10px;opacity:0;transition:opacity .3s}
+.saved-note.show{opacity:1}
+.upd{font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:9px}
+.flabel{font-size:12px;color:var(--muted);font-family:var(--mono);margin:2px 0 7px;letter-spacing:.04em}
+.riskstat{font-size:13px;color:var(--muted);margin:2px 0 10px}
+.riskstat b{color:var(--red)}
+
+/* ── RISK / EVIDENCE ── */
+.risk-pick{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.rk{display:flex;align-items:center;gap:6px;font-size:12.5px;border:1px solid var(--line);border-radius:18px;padding:5px 12px;cursor:pointer;background:#fff;color:var(--muted);user-select:none}
+.rk input{accent-color:var(--red);margin:0}
+.rk:has(input:checked){border-color:var(--red);color:var(--red);background:var(--red-bg)}
+.ev-row{display:flex;gap:7px;margin-bottom:7px;align-items:center}
+.ev-row select{border:1px solid var(--line);border-radius:6px;padding:8px;font-family:var(--mono);font-size:12.5px;background:#fff;color:var(--ink)}
+.ev-row input{flex:1;border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:13.5px;background:#fff;color:var(--ink)}
+.ev-row .del{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:6px;width:32px;height:34px;cursor:pointer;flex-shrink:0}
+.ev-row .del:hover{color:var(--red);border-color:var(--red)}
+.ev-lvl{font-family:var(--mono);font-size:10.5px;font-weight:600;border-radius:3px;padding:1px 5px;background:#e8eef5;color:var(--navy);margin-right:6px}
+.copy-rep{background:none;border:1px solid var(--line);border-radius:5px;color:var(--navy);font-family:var(--mono);font-size:11.5px;padding:5px 10px;cursor:pointer;margin-left:8px}
+.copy-rep:hover{background:#eef3f8}
+
+/* ── SUBMISSIONS LIST (reviewer) ── */
+.sub-list{margin-top:8px}
+.sub-item{border:1px solid var(--line);border-radius:7px;padding:14px 16px;margin-bottom:8px;background:#fff}
+.sub-item-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.sub-body{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--navy)}
+.sub-when{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.sub-status-badge{font-family:var(--mono);font-size:11px;font-weight:600;border-radius:4px;padding:3px 8px}
+.ssb-pending{background:#e8eef5;color:var(--navy)}
+.ssb-approved{background:var(--green-bg);color:var(--green)}
+.ssb-returned{background:var(--red-bg);color:var(--red)}
+.sub-data{font-size:13px;color:#2c3a47;margin-bottom:10px;line-height:1.6}
+.sub-data b{color:var(--navy)}
+.sub-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.sub-actions textarea{flex:1;min-width:220px;min-height:56px;margin-bottom:0}
+.approve-btn{background:var(--green);color:#fff;border:0;border-radius:6px;padding:9px 18px;font-weight:600;font-size:13px;cursor:pointer}
+.approve-btn:hover{background:#147a40}
+.return-btn{background:#fff;color:var(--red);border:1.5px solid var(--red);border-radius:6px;padding:9px 18px;font-weight:600;font-size:13px;cursor:pointer}
+.return-btn:hover{background:var(--red-bg)}
+.return-btn:disabled{opacity:.4;cursor:not-allowed}
+.no-subs{color:var(--muted);font-size:13px;padding:12px 0;font-style:italic}
+
+/* ── BODYMAP ── */
+.bodymap{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:16px 18px;margin-bottom:16px}
+.bodymap h3{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--navy);margin-bottom:12px}
+.bm-row{display:flex;align-items:center;gap:10px;padding:3px 0;cursor:pointer;border-radius:5px}
+.bm-row:hover{background:#f4f7fa}
+.bm-row.on .bm-name{color:var(--amber);font-weight:600}
+.bm-name{font-family:var(--mono);font-size:12.5px;width:135px;flex-shrink:0;color:var(--ink)}
+.bm-bar{flex:1;height:14px;background:var(--grey-bg);border-radius:3px;overflow:hidden}
+.bm-bar i{display:block;height:100%;background:var(--navy);border-radius:3px}
+.bm-row.on .bm-bar i{background:var(--amber)}
+.bm-n{font-family:var(--mono);font-size:12.5px;width:26px;text-align:right;color:var(--muted)}
+
+/* ── LEGEND / FOOT ── */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 26px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+footer{border-top:1px solid var(--line);margin-top:30px;padding:18px 0 30px;font-size:12px;color:var(--muted);font-family:var(--mono)}
+.empty{padding:36px;text-align:center;color:var(--muted)}
+
+/* ── REPORT OVERLAY ── */
+.overlay{position:fixed;inset:0;background:rgba(7,30,54,.55);display:none;z-index:50;overflow:auto;padding:30px 14px}
+.overlay.show{display:block}
+.report{background:#fff;max-width:860px;margin:0 auto;border-radius:10px;padding:34px 38px;position:relative}
+.report h2{font-size:20px;color:var(--navy-deep);margin-bottom:4px}
+.report .rsub{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:22px}
+.rp{border:1px solid var(--line);border-left-width:6px;border-radius:7px;padding:14px 16px;margin-bottom:12px;break-inside:avoid}
+.rp.green{border-left-color:var(--green)} .rp.amber{border-left-color:var(--amber)}
+.rp.red{border-left-color:var(--red)} .rp.grey{border-left-color:var(--grey)} .rp.none{border-left-color:var(--none)}
+.rp .rh{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.rp .rid{font-family:var(--mono);font-weight:600;color:var(--navy)}
+.rp .rstat{font-family:var(--mono);font-size:12px;font-weight:600}
+.rp .rstat.green{color:var(--green)} .rp .rstat.amber{color:var(--amber)} .rp .rstat.red{color:var(--red)}
+.rp .rstat.grey{color:var(--grey)} .rp .rstat.none{color:var(--none)}
+.rp .rt{font-size:13.5px;font-weight:600;margin:5px 0 7px}
+.rp .rf{font-size:12.5px;color:#33414e;margin-top:4px;white-space:pre-line}
+.rp .rf b{color:var(--navy)}
+.r-actions{display:flex;gap:10px;justify-content:flex-end;margin-bottom:18px}
+.r-actions .save-btn{background:var(--navy)}
+.r-actions .ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:28px;right:28px;background:var(--navy-deep);color:#fff;font-family:var(--mono);font-size:13px;padding:12px 20px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);transform:translateY(20px);opacity:0;transition:all .25s;z-index:200;max-width:340px}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.ok{border-left:4px solid var(--green)}
+#toast.err{border-left:4px solid var(--red)}
+#toast.info{border-left:4px solid var(--amber)}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:rgba(7,30,54,.7);display:flex;align-items:center;justify-content:center;z-index:90}
+#loading.hide{display:none}
+.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── PENDING BADGE ── */
+.pending-badge{background:var(--amber);color:#fff;border-radius:10px;font-family:var(--mono);font-size:10px;font-weight:600;padding:1px 6px;margin-left:6px}
+
+@media(max-width:640px){
+  .ribbon{flex-wrap:wrap} .rib{min-width:54px;flex:1 0 18%}
+  .hd-ctrl{width:100%;justify-content:flex-start}
+  .auth-box{padding:28px 22px}
+}
+@media print{
+  header,.filters,.edit,.hd-ctrl,.sub-panel{display:none!important}
+  .card{break-inside:avoid}
+  body.printing > *:not(.overlay){display:none!important}
+  body.printing .overlay{position:static;background:#fff;padding:0;display:block}
+  body.printing .report{box-shadow:none;border-radius:0;padding:0;max-width:none}
+  body.printing .r-actions{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading"><div class="spinner"></div></div>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">НАТО · IIOR 0204</div>
+    <h2>Моніторинг розвитку доброчесності</h2>
+    <label>Електронна пошта</label>
+    <input type="email" id="auth-email" placeholder="organ@integrity-demo.ua" autocomplete="username">
+    <label>Пароль</label>
+    <input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password">
+    <button class="auth-btn" onclick="doLogin()">Увійти</button>
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="wrap hd">
+    <div>
+      <div class="hd-id" data-i18n="hdId"></div>
+      <h1 data-i18n="title"></h1>
+      <div class="sub" data-i18n="subtitle"></div>
+    </div>
+    <div class="hd-ctrl">
+      <div class="lang">
+        <button id="lang-ua" onclick="setLang('ua')">UA</button>
+        <button id="lang-en" onclick="setLang('en')">EN</button>
+      </div>
+      <div class="user-badge" id="user-badge" style="display:none">
+        <span class="role-pill" id="role-pill"></span>
+        <span class="uname" id="uname"></span>
+      </div>
+      <button class="btn" onclick="exportExcel()" data-i18n="excelBtn"></button>
+      <button class="btn" onclick="openReport()" data-i18n="reportBtn"></button>
+      <button class="btn danger" onclick="doLogout()" id="logout-btn" style="display:none" data-i18n="logoutBtn"></button>
+    </div>
+  </div>
+  <div class="ribbon-zone">
+    <div class="wrap">
+      <div class="ribbon-label" data-i18n="ribbonLabel"></div>
+      <div class="ribbon" id="ribbon"></div>
+    </div>
+  </div>
+</header>
+
+<div id="role-banner" class="role-banner" style="display:none">
+  <div class="wrap" id="role-banner-text"></div>
+</div>
+
+<main class="wrap">
+  <div class="summary" id="summary"></div>
+  <div class="legend" id="legend"></div>
+  <div class="filters" id="filters"></div>
+  <div class="riskstat" id="riskstat"></div>
+  <div id="bodymap-wrap"></div>
+  <div id="cards"></div>
+</main>
+
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeReport()">
+  <div class="report" id="report"></div>
+</div>
+
+<footer><div class="wrap" data-i18n="footer"></div></footer>
+<div id="toast"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDocs, setDoc, addDoc, updateDoc,
+  collection, query, where, orderBy, serverTimestamp, onSnapshot }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ── CONFIG ───────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAeZmRx0Ctr_s4TWvgXkux93GdfDO6SAtM",
+  authDomain: "iior0204-ua.firebaseapp.com",
+  projectId: "iior0204-ua",
+  storageBucket: "iior0204-ua.firebasestorage.app",
+  messagingSenderId: "415086289843",
+  appId: "1:415086289843:web:8ddf91eeb29368cf1bd992"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ── DATA ─────────────────────────────────────────────────────
+const DATA = [{"id":"1","isHeader":false,"title":{"ua":"Завдання 1. Імплементовано елементи антикорупційного законодавства, що стосуються сфери оборони та безпеки, а також Антикорупційну стратегію. Підтримувати адекватний та забезпечений ресурсами механізм координації виконання Державної антикорупційної програми та забезпечити постійний моніторинг дотримання та звітування про стан прогресу.","en":"Objective 1. Implement the defence and security sector-related elements of the anti-corruption legislation as well as the Anti-Corruption Strategy. Maintain an adequate and resourced mechanism to coordinate the implementation of the State Anti-Corruption Programme and provide continual monitoring of compliance and reporting the status of progress."},"measures":{"ua":"1. Уповноважені підрозділи належним чином виконують завдання, визначені Законом України «Про запобігання корупції». Органами сектору безпеки та оборони розроблено антикорупційні програми.\n\n2.1. Органами СБО своєчасно надано інформацію до НАЗК щодо стану виконання заходів ДАП.\n\n2.2. НАЗК проведено моніторинг та оцінку ефективності виконання заходів ДАП.\n\n3. НАЗК розроблено проект Антикорупційної стратегії на 2026–2030 роки.\n\n4. НАЗК розроблено Примірний кодекс доброчесності для органів СБО.","en":"1. Authorised units properly perform tasks defined by the Law of Ukraine \"On Prevention of Corruption\". Security and defence sector bodies have developed anti-corruption programs.\n\n2.1. SDS bodies timely provided full information to the NACP on the state of SAP implementation.\n\n2.2. The NACP monitored and assessed the effectiveness of SAP measures.\n\n3. The NACP developed a draft Anti-Corruption Strategy for 2026–2030.\n\n4. The NACP developed a Model Code of Integrity for SDS bodies."},"kpi":{"ua":"1. Антикорупційні програми органів СБО містять всі елементи ч. 2 ст. 19 Закону «Про запобігання корупції».\n\n2.1. Інформсистема НАЗК відображає повну інформацію щодо прогресу ДАП.\n\n2.2. НАЗК подано національну доповідь не пізніше 01.04.2026.\n\n3. НАЗК подано до ВРУ проект Антикорупційної стратегії на 2026–2030 рр.\n\n4. Примірний кодекс доброчесності доведено до відома органів СБО.","en":"1. Anti-corruption programs contain all elements of Part 2 Art. 19 of the Law.\n\n2.1. NACP Information System reflects full SAP progress.\n\n2.2. NACP submitted national report no later than 01.04.2026.\n\n3. NACP submitted draft Anti-Corruption Strategy 2026–2030 to VRU.\n\n4. Model Code of Integrity communicated to SDS bodies."},"deadline":{"ua":"до початку 2026 року","en":"by the beginning of 2026"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, Мінцифри, НАДС, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, MDT, NACS, NSDC"},"deadlineYear":2026,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","MDT","NACS","NSDC","MES","ME","SSAU","SGCC"]},{"id":"2","isHeader":false,"title":{"ua":"Завдання 2. Впроваджено комплексні антикорупційні програми та плани заходів, що включатимуть рекомендації НАТО з розбудови доброчесності.","en":"Objective 2. Implement the comprehensive Integrity Plans and associated implementation plans, incorporating the NATO Building Integrity recommendations."},"measures":{"ua":"1. НАЗК спільно з органами СБО оцінено стан впровадження рекомендацій НАТО (Звіт 2019).\n\n2. НАЗК доведено до відома органів СБО рекомендації щодо перегляду антикорупційних програм.\n\n3. Уповноважені підрозділи здійснюють систематичний моніторинг виконання антикорупційної програми.","en":"1. NACP assessed the state of NATO BI recommendations implementation (2019 Report).\n\n2. NACP communicated recommendations on revising anti-corruption programs.\n\n3. Authorised units carry out systematic monitoring of anti-corruption program implementation."},"kpi":{"ua":"1. Аналітичний звіт передано стороні НАТО.\n\n2. Органами СБО оновлено антикорупційні програми з урахуванням рекомендацій НАТО.\n\n3. Уповноважені підрозділи подали звіт керівнику та розмістили на вебсайті.","en":"1. Analytical report transferred to NATO.\n\n2. SDS bodies updated anti-corruption programs incorporating NATO recommendations.\n\n3. Reports submitted to heads and posted on websites."},"deadline":{"ua":"до початку 2025 року","en":"by the beginning of 2025"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, СБУ, НАБУ, ВРУ","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SSU, NABU, VRU"},"deadlineYear":2025,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SSU","NABU","VRU"]},{"id":"3","isHeader":false,"title":{"ua":"Завдання 3. Продовжувати регулярно проводити самооцінку стану виконання програми НАТО з виховання доброчесності.","en":"Objective 3. Continue to conduct regularly NATO-BI Self-Assessments and Peer Review Processes."},"measures":{"ua":"Після завершення дії правового режиму воєнного стану буде проведено самооцінку та експертну оцінку органів СБО.","en":"After the end of martial law, a self-assessment and expert assessment of SDS bodies will be carried out."},"kpi":{"ua":"","en":""},"deadline":{"ua":"","en":""},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"","en":""},"deadlineYear":null,"conditional":true,"npu":false,"bodies":["NACP"]},{"id":"4","isHeader":false,"title":{"ua":"Завдання 4. Запроваджено навчальні курси та освітні програми з розбудови доброчесності для цивільного та військового персоналу.","en":"Objective 4. Establish appropriate BI training courses and education programmes for civilian and military personnel."},"measures":{"ua":"1. Уповноважені підрозділи організували навчання та заходи з поширення інформації щодо запобігання корупції.\n\n2. Уповноважені підрозділи здійснюють наповнення офіційних вебсайтів матеріалами антикорупційної тематики.\n\n3. Впроваджено навчання з питань етичних стандартів доброчесної поведінки.","en":"1. Authorised units organised training and measures to disseminate anti-corruption information.\n\n2. Authorised units carry out systematic filling of official websites with anti-corruption materials.\n\n3. Training on ethical standards of honest behavior introduced."},"kpi":{"ua":"1. Уповноважені підрозділи прозвітували до НАЗК щодо проведення курсів та тренінгів.\n\n2. Актуалізовано інформаційні матеріали на офіційних вебсайтах.\n\n3. Навчання з питань етичних стандартів впроваджено та пройдено працівниками.","en":"1. Authorised units reported to NACP on training activities.\n\n2. Information materials updated on official websites.\n\n3. Ethics training introduced and completed by employees."},"deadline":{"ua":"до початку 2025 року","en":"by the beginning of 2025"},"lead":{"ua":"Міноборони","en":"MoD"},"coexec":{"ua":"МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, НАДС, Апарат РНБО","en":"MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, NACS, NSDC"},"deadlineYear":2025,"conditional":false,"npu":true,"bodies":["MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NACS","NSDC"]},{"id":"5","isHeader":true,"title":{"ua":"Завдання 5. Забезпечити, щоб політика управління людськими ресурсами в секторі безпеки і оборони передбачала неупереджений і прозорий процес відбору на всіх етапах кар'єри.","en":"Objective 5. Ensure that human resource management policies in the defence and security sector provide an impartial and transparent selection process at all career stages."},"measures":{"ua":"","en":""},"kpi":{"ua":"","en":""},"deadline":{"ua":"","en":""},"lead":{"ua":"","en":""},"coexec":{"ua":"","en":""},"deadlineYear":null,"conditional":false,"npu":false,"bodies":[]},{"id":"5a","isHeader":false,"title":{"ua":"Завдання 5a. Система оцінки персоналу, яка забезпечує ефективний інструмент для розвитку персоналу та сприяє прозорості та справедливості при призначенні та просуванні.","en":"Objective 5a. A personnel evaluation system which provides an effective tool for personnel development and which promotes transparency and fairness in assignment and promotion."},"measures":{"ua":"1. Розроблено зміни до НПА щодо вдосконалення системи оцінювання персоналу з урахуванням підходів держав-членів НАТО.\n\n2. Уповноважені підрозділи проводять комплексну перевірку доброчесності кандидатів на просування по службі.","en":"1. Amendments to legislation developed to improve the personnel assessment system per NATO member state approaches.\n\n2. Authorised units conduct comprehensive integrity checks of candidates for promotion."},"kpi":{"ua":"1. Прийнято зміни до НПА щодо вдосконалення системи оцінювання персоналу.\n\n2. Проводиться комплексна перевірка доброчесності кандидатів відповідно до чек-листа.","en":"1. Amendments to legislation on personnel assessment system adopted.\n\n2. Comprehensive integrity checks conducted per the developed checklist."},"deadline":{"ua":"до початку 2027 року","en":"by the beginning of 2027"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, НАДС, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, NACS, NSDC"},"deadlineYear":2027,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NACS","NSDC"]},{"id":"5b","isHeader":false,"title":{"ua":"Завдання 5b. Ретельний контроль за призначенням та звільненням вищого керівництва з метою мінімізації можливості зловживання повноваженнями.","en":"Objective 5b. Scrutiny over the appointment and dismissal of senior leadership to minimise the possibility of abuse of political powers."},"measures":{"ua":"1. Проведено комплексний аналіз порядку призначення та звільнення вищого керівництва.\n\n2. Розроблено зміни до НПА, що регулюють питання призначення та звільнення вищого керівництва.","en":"1. Comprehensive analysis of senior leadership appointment and dismissal procedures conducted.\n\n2. Amendments to regulations governing senior leadership appointment and dismissal developed."},"kpi":{"ua":"1. Підготовлено комплексний звіт щодо порядку призначення та звільнення вищого керівництва.\n\n2. Прийнято зміни до НПА для унормування процедур та забезпечення прозорості.","en":"1. Comprehensive report on senior leadership appointment/dismissal procedures prepared.\n\n2. Amendments to regulations adopted to normalise procedures and ensure transparency."},"deadline":{"ua":"до початку 2027 року","en":"by the beginning of 2027"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, NSDC"},"deadlineYear":2027,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},{"id":"5c","isHeader":false,"title":{"ua":"Завдання 5c. Призначення персоналу на ключові посади здійснюється з урахуванням вимог до посад та особистої кваліфікації.","en":"Objective 5c. The assignment of personnel to key posts, taking into account requirements for the posts and personal qualifications."},"measures":{"ua":"В силах оборони та безпеки визначено перелік ключових посад та розроблено зміни до НПА щодо призначення з урахуванням кваліфікаційних вимог та перевірки доброчесності.","en":"Defence and security forces identified a list of key positions and developed amendments to regulations on appointment, including qualification requirements and comprehensive integrity checks."},"kpi":{"ua":"Визначено перелік ключових посад та прийнято зміни до НПА щодо призначення на ключові посади включно з кваліфікаційними вимогами.","en":"List of key positions identified and amendments to regulations on appointment to key positions adopted, including qualification requirements."},"deadline":{"ua":"до початку 2027 року","en":"by the beginning of 2027"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, NSDC"},"deadlineYear":2027,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},{"id":"5d","isHeader":false,"title":{"ua":"Завдання 5d. Проведення перевірки осіб, відібраних на посади, схильні до корупції, та регулярна ротація персоналу.","en":"Objective 5d. The vetting of persons selected for positions at risk for corruption and regular rotation of those personnel."},"measures":{"ua":"1. Міноборони проведено дослідження системи оцінки корупційно вразливих посад.\n\n2. НАЗК проведено оцінку вразливості посад органів СБО.\n\n3. Органами СБО визначено перелік посад, вразливих до корупції.","en":"1. MoD conducted research on the system for assessing corruption-vulnerable positions.\n\n2. NACP conducted vulnerability assessment of SDS positions.\n\n3. SDS bodies identified a list of positions vulnerable to corruption."},"kpi":{"ua":"1. Проведено дослідження системи оцінки посад.\n\n2. НАЗК розроблено методологію оцінки вразливості.\n\n3. Органами СБО затверджено перелік посад за методологією НАЗК.","en":"1. Research on position assessment system conducted.\n\n2. NACP developed vulnerability assessment methodology.\n\n3. SDS bodies approved list of positions using NACP methodology."},"deadline":{"ua":"до початку 2027 року","en":"by the beginning of 2027"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, NSDC"},"deadlineYear":2027,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},{"id":"5e","isHeader":false,"title":{"ua":"Завдання 5e. Комунікаційні механізми для регулярного інформування персоналу про зміни в управлінні людськими ресурсами.","en":"Objective 5e. Communication mechanisms to inform defence and security sector personnel of changes in human resources management."},"measures":{"ua":"1. Проведено аналіз функцій інформаційного забезпечення антикорупційних ініціатив.\n\n2. Забезпечено своєчасне розміщення інформаційних повідомлень на офіційних вебсайтах.","en":"1. Analysis of information support functions for anti-corruption initiatives conducted.\n\n2. Timely publication of relevant information on official websites ensured."},"kpi":{"ua":"1. Забезпечено доведення Дайджесту інформації щодо змін в управлінні персоналом.\n\n2. Забезпечено своєчасне інформування персоналу щодо антикорупційних ініціатив.","en":"1. Digest of information on HR management changes regularly communicated.\n\n2. Timely and regular informing of personnel on anti-corruption initiatives ensured."},"deadline":{"ua":"до початку 2027 року","en":"by the beginning of 2027"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, Мінстратегпром, АТ «УОП», НАБУ, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, UDI, NABU, NSDC"},"deadlineYear":2027,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},{"id":"5f","isHeader":false,"title":{"ua":"Завдання 5f. Повна автоматизація системи управління персоналом.","en":"Objective 5f. Full automatisation of personnel management systems."},"measures":{"ua":"1. В силах оборони та безпеки впроваджено автоматизовані системи обліку та управління персоналом.\n\n2. Запроваджено багаторівневу цифрову систему управління персоналом з інтеграцією модулів відбору, фінансового забезпечення та оцінки продуктивності.","en":"1. Automated information and analytical systems of personnel accounting and management implemented.\n\n2. Multi-level digital personnel management system with integrated modules introduced."},"kpi":{"ua":"1. Впроваджено автоматизовані інформаційно-комунікаційні системи управління персоналом.\n\n2. Функціонує багаторівнева цифрова система управління персоналом з інтеграцією всіх модулів.","en":"1. Automated information and communication systems for personnel management implemented.\n\n2. Multi-level digital personnel management system with all modules operational."},"deadline":{"ua":"до початку 2027 року","en":"by the beginning of 2027"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, Мінстратегпром, АТ «УОП», НАБУ, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, UDI, NABU, NSDC"},"deadlineYear":2027,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","UDI","NABU","NSDC"]},{"id":"6","isHeader":false,"title":{"ua":"Завдання 6. Інституціоналізовано підхід до оцінки ризиків для розвитку доброчесності шляхом розробки системи управління корупційними ризиками та реєстру ризиків.","en":"Objective 6. Institutionalise a risk assessment approach to integrity development by developing a corruption risk management system and risk register."},"measures":{"ua":"1. НАЗК зібрано від СБО інформацію щодо недоліків Методології управління корупційними ризиками.\n\n2. Уповноважені підрозділи розробили антикорупційні програми за оновленою методологією.","en":"1. NACP collected SDS sector information on shortcomings in the Corruption Risk Management Methodology.\n\n2. Authorised units developed anti-corruption programs per the updated methodology."},"kpi":{"ua":"1. Методологія управління корупційними ризиками містить чітку систему управління для органів СБО.\n\n2. Уповноважені підрозділи розробили та затвердили антикорупційні програми за новою методологією.","en":"1. Corruption Risk Management Methodology contains a clear system for SDS sector bodies.\n\n2. Authorised units developed and approved anti-corruption programs per the new methodology."},"deadline":{"ua":"до початку 2026 року","en":"by the beginning of 2026"},"lead":{"ua":"НАЗК","en":"NACP"},"coexec":{"ua":"Міноборони, МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, Апарат РНБО","en":"MoD, MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, NSDC"},"deadlineYear":2026,"conditional":false,"npu":true,"bodies":["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},{"id":"7","isHeader":false,"title":{"ua":"Завдання 7. Продовжується розвиток культури доброчесності шляхом включення Дисципліни НАТО з виховання доброчесності до навчальних програм академічних установ СБО.","en":"Objective 7. Continue to foster a culture of integrity by mainstreaming the NATO Building Integrity Discipline into the programmes of instruction of the academic institutions."},"measures":{"ua":"1. Розроблено та узгоджено уніфіковану навчальну дисципліну з доброчесності для СБО з урахуванням Програми НАТО.\n\n2. Уніфікована дисципліна доводиться до всіх зацікавлених сторін.\n\n3. На постійній основі проводиться навчання для викладачів з антикорупційної тематики.\n\n4. Розвиток спроможностей Наукового центру НУОУ для отримання статусу BITEC.","en":"1. Unified BI discipline for SDS developed and agreed per NATO Building Integrity Program.\n\n2. Unified discipline communicated to all interested parties.\n\n3. Ongoing training for teachers on anti-corruption topics.\n\n4. Development of NUOU capabilities toward BITEC status."},"kpi":{"ua":"1. Сформовано систему багаторівневої освіти з розбудови доброчесності відповідно до стандартів НАТО.\n\n2. Впроваджено та сертифіковано навчальні програми в освітніх установах СБО.\n\n3. Забезпечено підготовку викладацького складу.\n\n4. Сформовано єдину систему підготовки з розбудови доброчесності відповідно до стандартів НАТО.","en":"1. Multi-level BI education system established per NATO standards.\n\n2. BI training programs implemented and certified in SDS academic institutions.\n\n3. Teaching staff training needs met.\n\n4. Unified multi-level BI training system per NATO standards established."},"deadline":{"ua":"","en":""},"lead":{"ua":"Міноборони","en":"MoD"},"coexec":{"ua":"МВС, НПУ, НГУ, ДСНС, ДПСУ, ДМС, СБУ, УДО, Держспецзв'язку, СЗРУ, Мінстратегпром, АТ «УОП», НАБУ, НАДС, Мінветеранів, Апарат РНБО","en":"MIA, NPU, NGU, SESU, SBGS, SMS, SSU, DSP, SSSCIP, FISU, UDI, NABU, NACS, MVA, NSDC"},"deadlineYear":null,"conditional":false,"npu":true,"bodies":["MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NACS","NSDC","MVA"]}];
+
+const BODIES = {
+  NACP:{ua:'НАЗК',en:'NACP'}, MoD:{ua:'Міноборони',en:'MoD'}, MIA:{ua:'МВС',en:'MIA'},
+  NPU:{ua:'НПУ',en:'NPU'}, NGU:{ua:'НГУ',en:'NGU'}, SESU:{ua:'ДСНС',en:'SESU'},
+  SBGS:{ua:'ДПСУ',en:'SBGS'}, SMS:{ua:'ДМС',en:'SMS'}, SSU:{ua:'СБУ',en:'SSU'},
+  DSP:{ua:'УДО',en:'DSP'}, SSSCIP:{ua:'Держспецзв\u02bcязку',en:'SSSCIP'}, FISU:{ua:'СЗРУ',en:'FISU'},
+  UDI:{ua:'АТ «УОП»',en:'UDI'}, NABU:{ua:'НАБУ',en:'NABU'}, MDT:{ua:'Мінцифри',en:'MDT'},
+  NACS:{ua:'НАДС',en:'NACS'}, NSDC:{ua:'Апарат РНБО',en:'NSDC'}, MES:{ua:'МОН',en:'MES'},
+  MVA:{ua:'Мінветеранів',en:'MVA'}, VRU:{ua:'Апарат ВРУ',en:'VRU'}, ME:{ua:'Мінекономіки',en:'ME'},
+  SSAU:{ua:'ДКАУ',en:'SSAU'}, SGCC:{ua:'Держгеокадастр',en:'SGCC'}
+};
+const RISKS = ['personnel','regulatory','financial','technical','martial'];
+const items = DATA.filter(d => !d.isHeader);
+
+const I18N = {
+  ua:{
+    hdId:'НАТО · Початкова вимога до взаємосумісності 0204 · «Розвиток доброчесності»',
+    title:'Моніторинг виконання Уніфікованого плану заходів — IIOR 0204',
+    subtitle:'Кольорове звітування Green / Amber / Red за вимогами НАТО у секторі безпеки і оборони України',
+    ribbonLabel:'Стан вимог — натисніть для переходу',
+    statuses:{green:'Відповідає',amber:'Частково відповідає',red:'Не відповідає',grey:'Відтерміновано (ВС)',none:'Не оцінено'},
+    statusesLong:{green:'Green — вимогу виконано або виконується вчасно',amber:'Amber — незначні проблеми, усувні в межах строку',red:'Red — вимогу не виконано / не буде виконано вчасно',grey:'Сірий — виконання після завершення воєнного стану',none:'Статус ще не визначено'},
+    total:'Усього вимог', rated:'Оцінено',
+    fAll:'Всі', fNpu:'★ За участю НПУ', fYear:'Строк: всі', fLead:'Виконавець: всі',
+    measures:'Заходи', kpi:'Ключові показники (KPI)',
+    deadline:'Строк', lead:'Головний виконавець', coexec:'Співвиконавці',
+    edit:'Звітування за вимогою', progress:'Прогрес', comment:'Коментар / стан виконання',
+    npuContrib:'Внесок НПУ',
+    saveBtn:'Подати на погодження', savedMsg:'✓ Подано',
+    excelBtn:'⭳ Excel', reportBtn:'🖶 Звіт',
+    copyReport:'⎘ Копіювати', copied:'✓ Скопійовано',
+    reportTitle:'Звіт про стан виконання — IIOR 0204',
+    reportGenerated:'Сформовано', printBtn:'Друк / PDF', closeBtn:'Закрити',
+    rStatus:'Статус', rProgress:'Прогрес', rDeadline:'Строк',
+    rComment:'Стан виконання', rNpu:'Внесок НПУ', rEvidence:'Підтвердні матеріали',
+    rLead:'Виконавець', rRisks:'Ризики',
+    risksTitle:'Ризики виконання',
+    risks:{personnel:'кадрові',regulatory:'нормативні',financial:'фінансові',technical:'технічні',martial:'воєнний стан'},
+    mostRisk:'Найпоширеніший ризик', reqOf:'вимог',
+    bodyMapBtn:'🗺 Карта відповідальності',
+    bodyMapTitle:'Кількість вимог за органами',
+    evAdd:'+ Додати доказ', evText:'назва документа або URL',
+    evLvls:{A:'A — нормативний акт',B:'B — офіційний звіт',C:'C — навчання / захід',D:'D — інформ. повідомлення','':'— рівень'},
+    overdueWarn:'⚠ Строк минув, статус не Green',
+    updated:'Оновлено', empty:'Немає вимог за обраними фільтрами',
+    noDl:'без строку', condDl:'після завершення ВС',
+    logoutBtn:'Вийти',
+    pendingSubs:'подань на погодженні',
+    submitPending:'Подати на погодження',
+    approveBtn:'Затвердити',
+    returnBtn:'Повернути',
+    returnComment:'Причина повернення (обов\'язково)',
+    submissionsTab:'Подання органів',
+    myDataTab:'Поточні дані',
+    noSubmissions:'Немає активних подань',
+    submittedBy:'Подано',
+    submittedAt:'Час подання',
+    roleBannerExecutor:'Ви увійшли як виконавець. Заповніть дані та подайте на погодження НАЗК.',
+    roleBannerReviewer:'Ви увійшли як рецензент НАЗК. Переглядайте та погоджуйте подання органів.',
+    roleBannerSuperAdmin:'Суперадмін. Повний доступ до всіх функцій.',
+    footer:'Етап 2 — Firebase. УЗК НПУ · NATO Building Integrity · iior0204-ua'
+  },
+  en:{
+    hdId:'NATO · Initial Interoperability Requirement 0204 · "Integrity Development"',
+    title:'Unified Action Plan Monitor — IIOR 0204',
+    subtitle:'Green / Amber / Red status reporting on NATO IIR 0204 across Ukraine\'s security and defence sector',
+    ribbonLabel:'Requirement status — click to navigate',
+    statuses:{green:'Green',amber:'Amber',red:'Red',grey:'Conditional (ML)',none:'Not assessed'},
+    statusesLong:{green:'Green — met or on track',amber:'Amber — minor challenges, resolvable',red:'Red — not met / will not be met',grey:'Grey — conditional on end of martial law',none:'Not yet assessed'},
+    total:'Total requirements', rated:'Assessed',
+    fAll:'All', fNpu:'★ NPU involved', fYear:'Deadline: all', fLead:'Lead: all',
+    measures:'Measures', kpi:'Key performance indicators',
+    deadline:'Deadline', lead:'Lead executor', coexec:'Co-executors',
+    edit:'Requirement reporting', progress:'Progress', comment:'Comment / implementation status',
+    npuContrib:'NPU contribution',
+    saveBtn:'Submit for approval', savedMsg:'✓ Submitted',
+    excelBtn:'⭳ Excel', reportBtn:'🖶 Report',
+    copyReport:'⎘ Copy', copied:'✓ Copied',
+    reportTitle:'Implementation status report — IIOR 0204',
+    reportGenerated:'Generated', printBtn:'Print / PDF', closeBtn:'Close',
+    rStatus:'Status', rProgress:'Progress', rDeadline:'Deadline',
+    rComment:'Implementation status', rNpu:'NPU contribution', rEvidence:'Evidence',
+    rLead:'Lead executor', rRisks:'Risks',
+    risksTitle:'Implementation risks',
+    risks:{personnel:'personnel',regulatory:'regulatory',financial:'financial',technical:'technical',martial:'martial law'},
+    mostRisk:'Most common risk', reqOf:'requirements',
+    bodyMapBtn:'🗺 Responsibility map',
+    bodyMapTitle:'Requirements per body',
+    evAdd:'+ Add evidence', evText:'document title or URL',
+    evLvls:{A:'A — regulatory act',B:'B — official report',C:'C — training / event',D:'D — information notice','':'— level'},
+    overdueWarn:'⚠ Deadline passed, status not Green',
+    updated:'Updated', empty:'No requirements match the selected filters',
+    noDl:'no deadline', condDl:'after lifting of martial law',
+    logoutBtn:'Log out',
+    pendingSubs:'pending submissions',
+    submitPending:'Submit for approval',
+    approveBtn:'Approve',
+    returnBtn:'Return',
+    returnComment:'Return reason (required)',
+    submissionsTab:'Body submissions',
+    myDataTab:'Current data',
+    noSubmissions:'No active submissions',
+    submittedBy:'Submitted by',
+    submittedAt:'Submitted at',
+    roleBannerExecutor:'Logged in as executor. Fill in data and submit for NACP approval.',
+    roleBannerReviewer:'Logged in as NACP reviewer. Review and approve body submissions.',
+    roleBannerSuperAdmin:'Super admin. Full access to all functions.',
+    footer:'Stage 2 — Firebase. UZK NPU · NATO Building Integrity · iior0204-ua'
+  }
+};
+
+// ── STATE ────────────────────────────────────────────────────
+let lang = localStorage.getItem('iior0204_lang') || 'ua';
+let filt = {status:null, npu:false, year:'', lead:'', body:''};
+let showMap = false;
+let currentUser = null;
+let userProfile = null;
+let firestoreData = {}; // itemId → current doc
+let submissionsCache = {}; // itemId → [submissions]
+
+// ── UTILS ────────────────────────────────────────────────────
+function t(k){ const o=I18N[lang]; return k.split('.').reduce((a,b)=>a&&a[b],o)||k; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg, type='ok', dur=3000){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='show '+(type||'ok');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.className='',dur);
+}
+function loading(show){ document.getElementById('loading').className=show?'':'hide'; }
+
+function getSt(id){
+  if(firestoreData[id]) return firestoreData[id];
+  return {status:'none',progress:0,comment:'',evidence:[],npuContribution:'',risks:[]};
+}
+function evArr(s){
+  if(!s||!s.evidence) return [];
+  if(Array.isArray(s.evidence)) return s.evidence;
+  if(typeof s.evidence==='string' && s.evidence.trim())
+    return s.evidence.split(/\n/).filter(x=>x.trim()).map(x=>({lvl:'',text:x.trim()}));
+  return [];
+}
+function effStatus(d){ const s=getSt(d.id); const st=s.status||'none'; return st==='none'&&d.conditional?'grey':st; }
+function isOverdue(d){ const s=effStatus(d); return d.deadlineYear&&d.deadlineYear<=new Date().getFullYear()&&s!=='green'&&s!=='none'; }
+function leadShort(d){ const v=d.lead[lang].trim(); return v?v.split(/\n/)[0].replace(/\s+/g,' ').trim():''; }
+function canEditItem(d){
+  if(!userProfile) return false;
+  if(userProfile.role==='reviewer'||userProfile.role==='superadmin') return true;
+  if(userProfile.role==='executor') return (d.bodies||[]).includes(userProfile.body);
+  return false;
+}
+
+// ── FIRESTORE ────────────────────────────────────────────────
+async function loadCurrentData(){
+  const snap = await getDocs(collection(db,'iior_0204_current'));
+  firestoreData = {};
+  snap.forEach(d=>{ firestoreData[d.id]=d.data(); });
+}
+
+async function loadSubmissions(itemId){
+  if(!userProfile) return [];
+  let q;
+  if(userProfile.role==='executor'){
+    q = query(collection(db,'iior_0204_submissions'),
+      where('itemId','==',itemId), where('body','==',userProfile.body),
+      where('status','==','pending'), orderBy('submittedAt','desc'));
+  } else {
+    q = query(collection(db,'iior_0204_submissions'),
+      where('itemId','==',itemId), where('status','==','pending'),
+      orderBy('submittedAt','desc'));
+  }
+  const snap = await getDocs(q);
+  return snap.docs.map(d=>({id:d.id,...d.data()}));
+}
+
+async function submitItem(itemId, payload){
+  if(!currentUser||userProfile.role!=='executor') return;
+  await addDoc(collection(db,'iior_0204_submissions'),{
+    itemId, body:userProfile.body,
+    submittedBy:currentUser.uid, submittedByEmail:currentUser.email,
+    submittedAt:serverTimestamp(), status:'pending',
+    approvedBy:null, approvedByEmail:null, approvedAt:null,
+    returnedBy:null, returnedByEmail:null, returnedAt:null, returnComment:null,
+    ...payload
+  });
+}
+
+async function approveSubmission(subId, sub){
+  if(!currentUser||(userProfile.role!=='reviewer'&&userProfile.role!=='superadmin')) return;
+  if(sub.submittedBy===currentUser.uid){ toast('Не можна погоджувати власне подання','err'); return; }
+  // Update submission
+  await updateDoc(doc(db,'iior_0204_submissions',subId),{
+    status:'approved', approvedBy:currentUser.uid,
+    approvedByEmail:currentUser.email, approvedAt:serverTimestamp()
+  });
+  // Merge into current
+  await setDoc(doc(db,'iior_0204_current',sub.itemId),{
+    id:sub.itemId, status:sub.status_val, progress:sub.progress||0,
+    comment:sub.comment||'', npuContribution:sub.npuContribution||'',
+    risks:sub.risks||[], evidence:sub.evidence||[],
+    updatedAt:serverTimestamp(), approvedBy:currentUser.uid,
+    approvedByEmail:currentUser.email, approvedAt:serverTimestamp(),
+    sourceSubmission:subId
+  });
+  // Refresh
+  await loadCurrentData();
+  firestoreData[sub.itemId] = getSt(sub.itemId);
+}
+
+async function returnSubmission(subId, comment){
+  if(!comment||!comment.trim()){ toast(t('returnComment'),'err'); return; }
+  await updateDoc(doc(db,'iior_0204_submissions',subId),{
+    status:'returned', returnedBy:currentUser.uid,
+    returnedByEmail:currentUser.email, returnedAt:serverTimestamp(),
+    returnComment:comment.trim()
+  });
+}
+
+// ── AUTH ─────────────────────────────────────────────────────
+window.doLogin = async function(){
+  const email=document.getElementById('auth-email').value.trim();
+  const pass=document.getElementById('auth-pass').value;
+  document.getElementById('auth-err').textContent='';
+  if(!email||!pass){ document.getElementById('auth-err').textContent='Введіть email і пароль'; return; }
+  try{
+    await signInWithEmailAndPassword(auth,email,pass);
+  }catch(e){
+    const msgs={'auth/wrong-password':'Невірний пароль','auth/user-not-found':'Користувача не знайдено','auth/invalid-credential':'Невірний email або пароль'};
+    document.getElementById('auth-err').textContent = msgs[e.code]||e.message;
+  }
+};
+window.doLogout = async function(){
+  await signOut(auth);
+};
+
+// Enter key on password
+document.getElementById('auth-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+
+onAuthStateChanged(auth, async (user)=>{
+  loading(true);
+  if(user){
+    currentUser=user;
+    // Read role/body/active from Custom Claims (JWT token — no Firestore read needed)
+    const tokenResult = await user.getIdTokenResult();
+    const claims = tokenResult.claims;
+    if(!claims.active){
+      await signOut(auth);
+      document.getElementById('auth-err').textContent='Акаунт деактивовано. Зверніться до адміністратора.';
+      loading(false); return;
+    }
+    if(!claims.role){
+      await signOut(auth);
+      document.getElementById('auth-err').textContent='Профіль не налаштовано. Зверніться до адміністратора.';
+      loading(false); return;
+    }
+    // Build userProfile from claims + Auth display name
+    userProfile = {
+      uid:         user.uid,
+      email:       user.email,
+      displayName: user.displayName || user.email,
+      role:        claims.role,
+      body:        claims.body || '',
+      active:      claims.active,
+    };
+    // Show app
+    document.getElementById('auth-screen').classList.add('hide');
+    document.getElementById('logout-btn').style.display='';
+    document.getElementById('user-badge').style.display='';
+    document.getElementById('uname').textContent=userProfile.displayName;
+    const rp=document.getElementById('role-pill');
+    rp.textContent=userProfile.role; rp.className='role-pill '+userProfile.role;
+    // Load Firestore data
+    await loadCurrentData();
+    render();
+    // Real-time updates on current collection
+    onSnapshot(collection(db,'iior_0204_current'),snap=>{
+      snap.forEach(d=>{ firestoreData[d.id]=d.data(); });
+      render();
+    });
+  } else {
+    currentUser=null; userProfile=null;
+    document.getElementById('auth-screen').classList.remove('hide');
+    document.getElementById('logout-btn').style.display='none';
+    document.getElementById('user-badge').style.display='none';
+  }
+  loading(false);
+});
+
+// ── RENDER ───────────────────────────────────────────────────
+function render(){
+  document.documentElement.lang=lang==='ua'?'uk':'en';
+  document.getElementById('lang-ua').className=lang==='ua'?'on':'';
+  document.getElementById('lang-en').className=lang==='en'?'on':'';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent=t(el.dataset.i18n); });
+  renderRoleBanner();
+  renderRibbon(); renderSummary(); renderLegend(); renderFilters(); renderRiskStat(); renderBodyMap(); renderCards();
+}
+
+function renderRoleBanner(){
+  const b=document.getElementById('role-banner');
+  const bt=document.getElementById('role-banner-text');
+  if(!userProfile){b.style.display='none';return;}
+  b.style.display='';
+  const map={executor:'roleBannerExecutor',reviewer:'roleBannerReviewer',superadmin:'roleBannerSuperAdmin'};
+  bt.textContent=t(map[userProfile.role]||'roleBannerExecutor');
+  b.className='role-banner '+(userProfile.role===('superadmin')?'superadmin-b':userProfile.role==='reviewer'?'reviewer-b':'executor-b');
+}
+
+function renderRibbon(){
+  const r=document.getElementById('ribbon'); r.innerHTML='';
+  items.forEach(d=>{
+    const s=effStatus(d);
+    const b=document.createElement('button');
+    b.className='rib s-'+s;
+    b.innerHTML='<span>'+d.id+'</span>'+(isOverdue(d)?'<span class="flag">⚠</span>':'');
+    b.title=d.title[lang].split('\n')[0].slice(0,80);
+    b.onclick=()=>{ const c=document.getElementById('card-'+d.id); if(c){c.classList.add('open');c.scrollIntoView({block:'start'});} };
+    r.appendChild(b);
+  });
+}
+
+function counts(){ const c={green:0,amber:0,red:0,grey:0,none:0}; items.forEach(d=>c[effStatus(d)]++); return c; }
+
+function renderSummary(){
+  const c=counts(); const el=document.getElementById('summary'); el.innerHTML='';
+  const mk=(cls,n,label,fkey)=>{
+    const div=document.createElement('div');
+    div.className='sum '+cls+(filt.status===fkey?' active':'');
+    div.innerHTML='<div class="n">'+n+'</div><div class="t">'+esc(label)+'</div>';
+    div.onclick=()=>{ filt.status=(filt.status===fkey?null:fkey); render(); };
+    el.appendChild(div);
+  };
+  mk('total',items.length,t('total'),null);
+  mk('green',c.green,t('statuses.green'),'green');
+  mk('amber',c.amber,t('statuses.amber'),'amber');
+  mk('red',c.red,t('statuses.red'),'red');
+  mk('grey',c.grey,t('statuses.grey'),'grey');
+  mk('none',c.none,t('statuses.none'),'none');
+}
+
+function renderLegend(){
+  const el=document.getElementById('legend'); el.innerHTML='';
+  ['green','amber','red','grey','none'].forEach(s=>{
+    const sp=document.createElement('span');
+    sp.innerHTML='<i style="background:var(--'+(s==='none'?'none':s)+')"></i>'+esc(t('statusesLong.'+s));
+    el.appendChild(sp);
+  });
+}
+
+function renderFilters(){
+  const el=document.getElementById('filters'); el.innerHTML='';
+  const npu=document.createElement('button');
+  npu.className='chip npu'+(filt.npu?' on':''); npu.textContent=t('fNpu');
+  npu.onclick=()=>{filt.npu=!filt.npu;render();};
+  el.appendChild(npu);
+  const map=document.createElement('button');
+  map.className='chip'+(showMap?' on':''); map.textContent=t('bodyMapBtn');
+  map.onclick=()=>{showMap=!showMap;if(!showMap)filt.body='';render();};
+  el.appendChild(map);
+  const years=[...new Set(items.map(d=>d.deadlineYear).filter(Boolean))].sort();
+  const ysel=document.createElement('select'); ysel.className='chip';
+  ysel.innerHTML='<option value="">'+t('fYear')+'</option>'+years.map(y=>'<option '+(filt.year==y?'selected':'')+' value="'+y+'">'+(lang==='ua'?'до поч. '+y:'by start of '+y)+'</option>').join('');
+  ysel.onchange=e=>{filt.year=e.target.value;render();};
+  el.appendChild(ysel);
+  const leads=[...new Set(items.map(d=>leadShort(d)).filter(Boolean))];
+  const lsel=document.createElement('select'); lsel.className='chip';
+  lsel.innerHTML='<option value="">'+t('fLead')+'</option>'+leads.map(l=>'<option '+(filt.lead===l?'selected':'')+'>'+l+'</option>').join('');
+  lsel.onchange=e=>{filt.lead=e.target.value;render();};
+  el.appendChild(lsel);
+  if(filt.status||filt.npu||filt.year||filt.lead||filt.body){
+    const clr=document.createElement('button'); clr.className='chip'; clr.textContent='✕ '+t('fAll');
+    clr.onclick=()=>{filt={status:null,npu:false,year:'',lead:'',body:''};render();};
+    el.appendChild(clr);
+  }
+}
+
+function renderRiskStat(){
+  const el=document.getElementById('riskstat'); el.innerHTML='';
+  const cnt={};
+  items.forEach(d=>{(getSt(d.id).risks||[]).forEach(r=>cnt[r]=(cnt[r]||0)+1);});
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+  if(top) el.innerHTML=esc(t('mostRisk'))+': <b>'+esc(t('risks.'+top[0]))+'</b> ('+top[1]+' '+esc(t('reqOf'))+')';
+}
+
+function renderBodyMap(){
+  const w=document.getElementById('bodymap-wrap'); w.innerHTML='';
+  if(!showMap) return;
+  const cnt={};
+  items.forEach(d=>(d.bodies||[]).forEach(b=>cnt[b]=(cnt[b]||0)+1));
+  const rows=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  const max=rows.length?rows[0][1]:1;
+  const div=document.createElement('div'); div.className='bodymap';
+  div.innerHTML='<h3>'+esc(t('bodyMapTitle'))+'</h3>'+rows.map(([code,n])=>
+    '<div class="bm-row'+(filt.body===code?' on':'')+'" onclick="toggleBody(\''+code+'\')">'+
+    '<span class="bm-name">'+esc(BODIES[code]?BODIES[code][lang]:code)+'</span>'+
+    '<span class="bm-bar"><i style="width:'+Math.round(n/max*100)+'%"></i></span>'+
+    '<span class="bm-n">'+n+'</span></div>').join('');
+  w.appendChild(div);
+}
+window.toggleBody=function(code){filt.body=(filt.body===code?'':code);render();};
+
+function visible(){
+  return items.filter(d=>{
+    if(filt.status&&effStatus(d)!==filt.status) return false;
+    if(filt.npu&&!d.npu) return false;
+    if(filt.year&&String(d.deadlineYear)!==String(filt.year)) return false;
+    if(filt.lead&&leadShort(d)!==filt.lead) return false;
+    if(filt.body&&!(d.bodies||[]).includes(filt.body)) return false;
+    return true;
+  });
+}
+
+function renderCards(){
+  const el=document.getElementById('cards'); el.innerHTML='';
+  const vis=visible();
+  if(!vis.length){el.innerHTML='<div class="card"><div class="empty">'+esc(t('empty'))+'</div></div>';return;}
+  vis.forEach(d=>{
+    const s=getSt(d.id), eff=effStatus(d);
+    const titleFull=d.title[lang]; const firstLine=titleFull.split('\n')[0];
+    const shortT=firstLine.replace(/^Завдання [^.]+\.\s*/,'').replace(/^Objective [^.]+\.\s*/,'');
+    const dl=d.deadline[lang].trim()?d.deadline[lang].replace(/\s+/g,' ').trim():(d.conditional?t('condDl'):t('noDl'));
+    const over=isOverdue(d);
+    const card=document.createElement('div'); card.className='card'; card.id='card-'+d.id;
+    const canEdit=canEditItem(d);
+    card.innerHTML=
+    '<div class="card-h" onclick="this.parentElement.classList.toggle(\'open\')">'+
+      '<div class="tag t-'+eff+'">'+d.id+'</div>'+
+      '<div style="flex:1">'+
+        '<div class="card-title">'+esc(shortT||firstLine)+'</div>'+
+        '<div class="card-meta">'+
+          '<span class="pill p-status" style="background:var(--'+(eff==='none'?'none':eff)+')">'+esc(t('statuses.'+eff))+'</span>'+
+          '<span class="pill p-dl'+(over?' over':'')+'">⏱ '+esc(dl)+'</span>'+
+          (leadShort(d)?'<span class="pill p-lead">'+esc(leadShort(d))+'</span>':'')+
+          (d.npu?'<span class="pill p-npu">★ НПУ</span>':'')+
+          (s.progress>0?'<span class="pill p-prog">'+s.progress+'%</span>':'')+
+          ((s.risks&&s.risks.length)?'<span class="pill p-risk">⚠ '+esc(s.risks.map(r=>t('risks.'+r)).join(', '))+'</span>':'')+
+          (evArr(s).length?'<span class="pill p-dl">📎 '+evArr(s).length+'</span>':'')+
+        '</div>'+
+        (over?'<div class="warn">'+esc(t('overdueWarn'))+'</div>':'')+
+        (s.comment?'<div class="comment-prev">'+esc(s.comment.slice(0,180))+(s.comment.length>180?'…':'')+'</div>':'')+
+      '</div>'+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    '<div class="progress"><i style="width:'+s.progress+'%"></i></div>'+
+    '<div class="card-b">'+
+      '<div class="two">'+
+        '<div class="sec"><h4>'+esc(t('measures'))+'</h4><div class="txt">'+esc(d.measures[lang])+'</div></div>'+
+        '<div class="sec"><h4>'+esc(t('kpi'))+'</h4><div class="txt">'+esc(d.kpi[lang])+'</div></div>'+
+      '</div>'+
+      '<div class="two">'+
+        '<div class="sec"><h4>'+esc(t('lead'))+'</h4><div class="txt">'+esc(d.lead[lang]||'—')+'</div></div>'+
+        '<div class="sec"><h4>'+esc(t('coexec'))+'</h4><div class="txt">'+esc(d.coexec[lang]||'—')+'</div></div>'+
+      '</div>'+
+      (canEdit ? editPanel(d) : '')+
+    '</div>';
+    el.appendChild(card);
+    // Load submissions async for reviewer/superadmin
+    if(userProfile&&(userProfile.role==='reviewer'||userProfile.role==='superadmin')){
+      loadAndRenderSubs(d.id, card);
+    }
+  });
+}
+
+async function loadAndRenderSubs(itemId, cardEl){
+  const subs = await loadSubmissions(itemId);
+  submissionsCache[itemId]=subs;
+  if(!subs.length) return;
+  // Add pending badge to ribbon
+  const rib=document.querySelector('#ribbon .rib[onclick*="card-'+itemId+'"]');
+  // Update edit panel submissions section if open
+  const subsEl=cardEl.querySelector('.subs-section-'+itemId);
+  if(subsEl) renderSubsList(subsEl, subs, itemId);
+}
+
+function editPanel(d){
+  const s=getSt(d.id);
+  const isReviewer=userProfile&&(userProfile.role==='reviewer'||userProfile.role==='superadmin');
+  const sb=['green','amber','red','grey','none'].map(k=>
+    '<button class="stb '+k+(s.status===k?' sel':'')+'" onclick="setStatusLocal(\''+d.id+'\',\''+k+'\')">'+esc(t('statuses.'+k))+'</button>'
+  ).join('');
+  const risks=RISKS.map(r=>'<label class="rk"><input type="checkbox" data-risk="'+r+'" '+((s.risks||[]).includes(r)?'checked':'')+'>'+esc(t('risks.'+r))+'</label>').join('');
+
+  let subSection='';
+  if(isReviewer){
+    const subs=submissionsCache[d.id]||[];
+    subSection='<div class="sub-panel" id="subs-section-'+d.id+'">'+
+      '<h4>'+esc(t('submissionsTab'))+'</h4>'+
+      '<div class="sub-list" id="sub-list-'+d.id+'">'+renderSubsHTML(subs, d.id)+'</div>'+
+    '</div>';
+  }
+
+  return '<div class="sub-panel" id="ed-'+d.id+'">'+
+    '<h4>'+esc(isReviewer?t('edit')+' (рецензент)':t('edit'))+' — '+d.id+'</h4>'+
+    '<div class="st-pick">'+sb+'</div>'+
+    '<div class="frow"><label>'+esc(t('progress'))+'</label>'+
+      '<input type="range" min="0" max="100" step="5" value="'+s.progress+'" oninput="this.nextElementSibling.textContent=this.value+\'%\'" id="pr-'+d.id+'">'+
+      '<span class="pv">'+s.progress+'%</span></div>'+
+    '<div class="flabel">'+esc(t('risksTitle'))+'</div>'+
+    '<div class="risk-pick" id="rk-'+d.id+'">'+risks+'</div>'+
+    '<textarea id="cm-'+d.id+'" placeholder="'+esc(t('comment'))+'">'+esc(s.comment||'')+'</textarea>'+
+    (d.npu?'<textarea id="nc-'+d.id+'" placeholder="'+esc(t('npuContrib'))+'">'+esc(s.npuContribution||'')+'</textarea>':'')+
+    '<div class="flabel">'+esc(t('rEvidence'))+'</div>'+
+    '<div id="evl-'+d.id+'">'+evArr(s).map(evRowHtml).join('')+'</div>'+
+    '<button class="copy-rep" style="margin:0 0 12px" onclick="addEv(\''+d.id+'\')">'+esc(t('evAdd'))+'</button><br>'+
+    (userProfile.role==='executor'
+      ? '<button class="save-btn" onclick="doSubmit(\''+d.id+'\')">'+esc(t('saveBtn'))+'</button>'
+      : '<button class="save-btn" onclick="doReviewerSave(\''+d.id+'\')">'+esc(t('approveBtn')+' / Зберегти')+'</button>'
+    )+
+    '<span class="saved-note" id="sv-'+d.id+'">'+esc(t('savedMsg'))+'</span>'+
+    (s.updatedAt?'<div class="upd">'+esc(t('updated'))+': '+(s.updatedAt.toDate?s.updatedAt.toDate().toLocaleString(lang==='ua'?'uk-UA':'en-GB'):new Date(s.updatedAt).toLocaleString())+'</div>':'')+
+  '</div>'+subSection;
+}
+
+function renderSubsHTML(subs, itemId){
+  if(!subs.length) return '<div class="no-subs">'+esc(t('noSubmissions'))+'</div>';
+  return subs.map(sub=>{
+    const when=sub.submittedAt?.toDate?.()?.toLocaleString(lang==='ua'?'uk-UA':'en-GB')||'';
+    const bodyName=BODIES[sub.body]?BODIES[sub.body][lang]:sub.body;
+    return '<div class="sub-item" id="sub-'+sub.id+'">'+
+      '<div class="sub-item-h">'+
+        '<span class="sub-body">'+esc(bodyName)+'</span>'+
+        '<span class="sub-status-badge ssb-pending">pending</span>'+
+        '<span class="sub-when">'+esc(when)+'</span>'+
+      '</div>'+
+      '<div class="sub-data">'+
+        '<b>'+esc(t('statuses.'+sub.status_val))+'</b>'+
+        (sub.progress?' · '+sub.progress+'%':'')+
+        (sub.comment?'<br>'+esc(sub.comment.slice(0,200)):'')+
+        (sub.npuContribution?'<br><b>НПУ:</b> '+esc(sub.npuContribution.slice(0,200)):'')+
+        ((sub.risks&&sub.risks.length)?'<br><b>Ризики:</b> '+esc(sub.risks.map(r=>t('risks.'+r)).join(', ')):'')+
+      '</div>'+
+      '<div class="sub-actions">'+
+        '<button class="approve-btn" onclick="doApprove(\''+sub.id+'\',\''+itemId+'\')">'+esc(t('approveBtn'))+'</button>'+
+        '<textarea id="ret-cm-'+sub.id+'" placeholder="'+esc(t('returnComment'))+'" style="flex:1;min-width:200px;min-height:52px;margin:0"></textarea>'+
+        '<button class="return-btn" id="ret-btn-'+sub.id+'" onclick="doReturn(\''+sub.id+'\',\''+itemId+'\')">'+esc(t('returnBtn'))+'</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function renderSubsList(el, subs, itemId){ el.innerHTML=renderSubsHTML(subs,itemId); }
+
+window.doApprove = async function(subId, itemId){
+  const subs=submissionsCache[itemId]||[];
+  const sub=subs.find(s=>s.id===subId);
+  if(!sub){toast('Подання не знайдено','err');return;}
+  loading(true);
+  try{
+    await approveSubmission(subId, sub);
+    delete submissionsCache[itemId];
+    toast('✓ Затверджено та опубліковано','ok');
+    const open=[...document.querySelectorAll('.card.open')].map(c=>c.id);
+    render(); open.forEach(i=>{const c=document.getElementById(i);if(c)c.classList.add('open');});
+  }catch(e){toast('Помилка: '+e.message,'err');}
+  loading(false);
+};
+
+window.doReturn = async function(subId, itemId){
+  const cm=document.getElementById('ret-cm-'+subId);
+  if(!cm||!cm.value.trim()){toast(t('returnComment'),'err');return;}
+  loading(true);
+  try{
+    await returnSubmission(subId, cm.value);
+    const subs=submissionsCache[itemId]||[];
+    submissionsCache[itemId]=subs.filter(s=>s.id!==subId);
+    toast('Повернуто з коментарем','info');
+    const listEl=document.getElementById('sub-list-'+itemId);
+    if(listEl) renderSubsList(listEl, submissionsCache[itemId]||[], itemId);
+  }catch(e){toast('Помилка: '+e.message,'err');}
+  loading(false);
+};
+
+window.setStatusLocal = function(id, st){
+  if(!firestoreData[id]) firestoreData[id]={};
+  firestoreData[id].status=st;
+  const open=[...document.querySelectorAll('.card.open')].map(c=>c.id);
+  render(); open.forEach(i=>{const c=document.getElementById(i);if(c)c.classList.add('open');});
+};
+
+window.doSubmit = async function(id){
+  const s=firestoreData[id]||{};
+  const progress=+document.getElementById('pr-'+id).value;
+  const comment=document.getElementById('cm-'+id).value.trim();
+  const nc=document.getElementById('nc-'+id); const npuContribution=nc?nc.value.trim():'';
+  const risks=[...document.querySelectorAll('#rk-'+id+' input:checked')].map(i=>i.dataset.risk);
+  const evidence=[...document.querySelectorAll('#evl-'+id+' .ev-row')].map(r=>({
+    lvl:r.querySelector('select').value, text:r.querySelector('input').value.trim()
+  })).filter(e=>e.text);
+  const status_val=s.status||'none';
+  loading(true);
+  try{
+    await submitItem(id,{status_val,progress,comment,npuContribution,risks,evidence});
+    toast('✓ Подано на погодження до НАЗК','ok');
+    const n=document.getElementById('sv-'+id); if(n){n.classList.add('show');setTimeout(()=>n.classList.remove('show'),2000);}
+  }catch(e){toast('Помилка: '+e.message,'err');}
+  loading(false);
+};
+
+window.doReviewerSave = async function(id){
+  const progress=+document.getElementById('pr-'+id).value;
+  const comment=document.getElementById('cm-'+id).value.trim();
+  const nc=document.getElementById('nc-'+id); const npuContribution=nc?nc.value.trim():'';
+  const risks=[...document.querySelectorAll('#rk-'+id+' input:checked')].map(i=>i.dataset.risk);
+  const evidence=[...document.querySelectorAll('#evl-'+id+' .ev-row')].map(r=>({
+    lvl:r.querySelector('select').value, text:r.querySelector('input').value.trim()
+  })).filter(e=>e.text);
+  const s=firestoreData[id]||{};
+  loading(true);
+  try{
+    await setDoc(doc(db,'iior_0204_current',id),{
+      id, status:s.status||'none', progress, comment, npuContribution, risks, evidence,
+      updatedAt:serverTimestamp(), approvedBy:currentUser.uid,
+      approvedByEmail:currentUser.email, approvedAt:serverTimestamp()
+    });
+    await loadCurrentData();
+    toast('✓ Збережено (безпосередньо рецензентом)','ok');
+    const open=[...document.querySelectorAll('.card.open')].map(c=>c.id);
+    render(); open.forEach(i=>{const c=document.getElementById(i);if(c)c.classList.add('open');});
+  }catch(e){toast('Помилка: '+e.message,'err');}
+  loading(false);
+};
+
+function evRowHtml(it){
+  const opts=['','A','B','C','D'].map(l=>'<option value="'+l+'" '+(it.lvl===l?'selected':'')+'>'+esc(t('evLvls.'+l))+'</option>').join('');
+  return '<div class="ev-row"><select class="lvl">'+opts+'</select>'+
+    '<input type="text" placeholder="'+esc(t('evText'))+'" value="'+esc(it.text||'')+'">'+
+    '<button class="del" onclick="this.parentElement.remove()" title="✕">✕</button></div>';
+}
+window.addEv = function(id){
+  document.getElementById('evl-'+id).insertAdjacentHTML('beforeend',evRowHtml({lvl:'',text:''}));
+};
+
+// ── REPORT ───────────────────────────────────────────────────
+window.openReport = function(){
+  const el=document.getElementById('report');
+  const vis=visible(); const c=counts();
+  el.innerHTML=
+    '<div class="r-actions">'+
+      '<button class="save-btn" onclick="printReport()">'+esc(t('printBtn'))+'</button>'+
+      '<button class="save-btn ghost" onclick="closeReport()">'+esc(t('closeBtn'))+'</button>'+
+    '</div>'+
+    '<h2>'+esc(t('reportTitle'))+'</h2>'+
+    '<div class="rsub">'+esc(t('reportGenerated'))+': '+new Date().toLocaleString(lang==='ua'?'uk-UA':'en-GB')+
+      ' · Green '+c.green+' · Amber '+c.amber+' · Red '+c.red+'</div>'+
+    vis.map(d=>{
+      const eff=effStatus(d), s=getSt(d.id);
+      const title=d.title[lang].split('\n')[0];
+      const dl=d.deadline[lang].trim()?d.deadline[lang].replace(/\s+/g,' ').trim():(d.conditional?t('condDl'):t('noDl'));
+      let rows='';
+      const rf=(label,val)=>{if(val)rows+='<div class="rf"><b>'+esc(label)+':</b> '+esc(val)+'</div>';};
+      rf(t('rDeadline'),dl+(leadShort(d)?' · '+leadShort(d):''));
+      if(isOverdue(d))rows+='<div class="rf" style="color:var(--red)">'+esc(t('overdueWarn'))+'</div>';
+      if(s.risks&&s.risks.length)rf(t('rRisks'),s.risks.map(r=>t('risks.'+r)).join(', '));
+      rf(t('rComment'),s.comment);
+      if(d.npu)rf(t('rNpu'),s.npuContribution);
+      const ev=evArr(s);
+      if(ev.length)rows+='<div class="rf"><b>'+esc(t('rEvidence'))+':</b>\n'+ev.map(e=>'• '+(e.lvl?'<span class="ev-lvl">'+e.lvl+'</span>':'')+esc(e.text)).join('\n')+'</div>';
+      if(s.updatedAt)rows+='<div class="rf" style="color:var(--muted)">'+esc(t('updated'))+': '+(s.updatedAt.toDate?s.updatedAt.toDate().toLocaleString():new Date(s.updatedAt).toLocaleString())+'</div>';
+      return '<div class="rp '+eff+'">'+
+        '<div class="rh"><span class="rid">'+d.id+'</span><span class="rstat '+eff+'">'+esc(t('statuses.'+eff))+(s.progress?' · '+s.progress+'%':'')+'</span></div>'+
+        '<div class="rt">'+esc(title)+'</div>'+rows+'</div>';
+    }).join('');
+  document.getElementById('overlay').classList.add('show');
+};
+window.closeReport=function(){document.getElementById('overlay').classList.remove('show');};
+window.printReport=function(){document.body.classList.add('printing');window.print();setTimeout(()=>document.body.classList.remove('printing'),500);};
+
+// ── EXCEL ────────────────────────────────────────────────────
+window.exportExcel = function(){
+  const head=lang==='ua'
+    ?['ID','Вимога','Статус','Прогрес %','Строк','Гол. виконавець','НПУ','Ризики','Стан виконання','Внесок НПУ','Підтвердні матеріали','Оновлено']
+    :['ID','Requirement','Status','Progress %','Deadline','Lead executor','NPU','Risks','Implementation status','NPU contribution','Evidence','Updated'];
+  const rows=items.map(d=>{
+    const s=getSt(d.id),eff=effStatus(d);
+    const dl=d.deadline[lang].trim()?d.deadline[lang].replace(/\s+/g,' ').trim():(d.conditional?t('condDl'):t('noDl'));
+    return [d.id,d.title[lang].split('\n')[0].slice(0,120),t('statuses.'+eff),s.progress,dl,leadShort(d),
+      d.npu?(lang==='ua'?'Так':'Yes'):(lang==='ua'?'Ні':'No'),
+      (s.risks||[]).map(r=>t('risks.'+r)).join(', '),
+      s.comment||'',d.npu?(s.npuContribution||''):'',
+      evArr(s).map(e=>(e.lvl?'['+e.lvl+'] ':'')+e.text).join('; '),
+      s.updatedAt?(s.updatedAt.toDate?s.updatedAt.toDate().toLocaleString():new Date(s.updatedAt).toLocaleString()):''];
+  });
+  const fname='IIOR0204_status_'+new Date().toISOString().slice(0,10);
+  if(typeof XLSX!=='undefined'){
+    const ws=XLSX.utils.aoa_to_sheet([head,...rows]);
+    ws['!cols']=[{wch:5},{wch:60},{wch:18},{wch:10},{wch:22},{wch:16},{wch:10},{wch:24},{wch:50},{wch:50},{wch:40},{wch:18}];
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'IIOR 0204');
+    XLSX.writeFile(wb,fname+'.xlsx');
+  } else {
+    const csv='\uFEFF'+[head,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    a.download=fname+'.csv'; a.click();
+  }
+};
+
+window.setLang = function(l){ lang=l; localStorage.setItem('iior0204_lang',l); render(); };
+
+</script>
+</body>
+</html>
