@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IIOR 0204 — Публічний моніторинг доброчесності</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap&subset=cyrillic" rel="stylesheet">
+<style>
+:root{
+  --navy:#0b2d4f;--navy-deep:#071e36;--paper:#f7f8f9;--ink:#1a2530;--muted:#5b6b7a;
+  --line:#d8dee4;--card:#ffffff;
+  --green:#1a8a4a;--green-bg:#e7f5ec;
+  --amber:#d98e00;--amber-bg:#fdf3e0;
+  --red:#c8372d;--red-bg:#fbe9e7;
+  --grey:#6b7682;--grey-bg:#eef1f3;
+  --none:#aeb8c2;--none-bg:#f1f3f5;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.55}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px}
+
+/* HEADER */
+header{background:var(--navy-deep);color:#fff;border-bottom:4px solid var(--amber)}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:22px 0 18px;flex-wrap:wrap}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:#9fb6cc;text-transform:uppercase;margin-bottom:6px}
+.hd h1{font-size:clamp(17px,2.2vw,23px);font-weight:700;line-height:1.3}
+.hd .sub{color:#b8c8d8;font-size:13px;margin-top:6px;max-width:680px}
+.hd-right{display:flex;gap:8px;align-items:center;margin-top:4px}
+.lang{display:flex;border:1px solid #3d5a78;border-radius:6px;overflow:hidden}
+.lang button{background:transparent;color:#9fb6cc;border:0;padding:6px 13px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.lang button.on{background:#fff;color:var(--navy-deep);font-weight:600}
+.pub-badge{font-family:var(--mono);font-size:11px;letter-spacing:.06em;background:rgba(26,138,74,.25);color:#6edb9a;border:1px solid rgba(26,138,74,.3);border-radius:5px;padding:5px 12px}
+
+/* SUMMARY PILLS */
+.summary-bar{background:var(--navy);padding:14px 0}
+.sum-pills{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sp{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:7px;padding:8px 14px;display:flex;align-items:center;gap:8px}
+.sp .dot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+.sp .val{font-family:var(--mono);font-weight:600;font-size:18px;color:#fff}
+.sp .lbl{font-size:12px;color:#9fb6cc}
+.last-upd{font-family:var(--mono);font-size:11px;color:#8aa6c0;margin-left:auto}
+
+/* LEGEND */
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 8px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* MATRIX TABLE */
+.matrix-wrap{overflow-x:auto;margin:18px 0 30px;border:1px solid var(--line);border-radius:10px;background:#fff}
+table{width:100%;border-collapse:collapse;min-width:700px}
+thead th{padding:10px 8px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:#f7f8f9;border-bottom:2px solid var(--line);white-space:nowrap;position:sticky;top:0;z-index:2}
+thead th.task-col{text-align:left;min-width:220px;padding-left:16px}
+thead th.body-col{text-align:center;min-width:54px;max-width:70px;padding:10px 4px}
+tbody tr:hover{background:#fafbfc}
+tbody tr:not(:last-child){border-bottom:1px solid var(--line)}
+td.task-cell{padding:12px 16px;vertical-align:middle}
+td.task-cell .task-id{font-family:var(--mono);font-weight:600;font-size:12px;color:var(--navy);margin-bottom:3px}
+td.task-cell .task-title{font-size:13px;color:var(--ink);line-height:1.4}
+td.task-cell .task-dl{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+td.status-cell{text-align:center;padding:8px 4px;vertical-align:middle;cursor:pointer;transition:background .12s}
+td.status-cell:hover{background:#f0f4f8}
+.status-dot{width:28px;height:28px;border-radius:6px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;font-family:var(--mono)}
+.status-dot.green{background:var(--green)}
+.status-dot.amber{background:var(--amber)}
+.status-dot.red{background:var(--red)}
+.status-dot.grey{background:var(--grey)}
+.status-dot.none{background:var(--none-bg);color:var(--none);border:1px dashed var(--none)}
+td.overall-cell{padding:8px 6px;vertical-align:middle}
+.overall-badge{display:inline-flex;align-items:center;justify-content:center;width:36px;height:28px;border-radius:6px;font-family:var(--mono);font-weight:600;font-size:12px;color:#fff}
+.ob-green{background:var(--green)}.ob-amber{background:var(--amber)}.ob-red{background:var(--red)}
+.ob-grey{background:var(--grey)}.ob-none{background:var(--none-bg);color:var(--none);border:1px dashed var(--none)}
+
+/* DETAIL POPUP */
+.popup-overlay{position:fixed;inset:0;background:rgba(7,30,54,.5);z-index:50;display:none;align-items:center;justify-content:center;padding:20px}
+.popup-overlay.show{display:flex}
+.popup{background:#fff;border-radius:10px;padding:28px 30px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.popup-h{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+.popup-tag{font-family:var(--mono);font-weight:600;font-size:13px;color:#fff;border-radius:5px;width:44px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.popup-title{font-size:14px;font-weight:600;line-height:1.4;color:var(--navy-deep)}
+.popup-body-name{font-family:var(--mono);font-size:12px;color:var(--amber);font-weight:600;margin-bottom:10px}
+.popup-field{margin-bottom:10px}
+.popup-field label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px}
+.popup-field p{font-size:13.5px;color:#2c3a47;line-height:1.6;white-space:pre-line}
+.popup-field .ev-item{font-size:12.5px;color:var(--muted);margin-top:3px}
+.popup-close{display:block;width:100%;background:var(--navy);color:#fff;border:0;border-radius:7px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:16px;font-family:var(--sans)}
+.popup-close:hover{background:#0e3a66}
+.no-data{color:var(--muted);font-style:italic;font-size:13px}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:rgba(7,30,54,.6);display:flex;align-items:center;justify-content:center;z-index:90}
+#loading.hide{display:none}
+.spinner{width:38px;height:38px;border:3px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+footer{border-top:1px solid var(--line);padding:16px 0 24px;font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:20px}
+
+@media(max-width:640px){
+  .sum-pills{gap:7px}
+  .sp .val{font-size:16px}
+  .hd-right{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div></div>
+
+<header>
+  <div class="wrap hd">
+    <div>
+      <div class="eyebrow">НАТО · IIR 0204 · «Розвиток доброчесності» · Публічний моніторинг</div>
+      <h1 id="page-title">Стан виконання Уніфікованого плану заходів — IIOR 0204</h1>
+      <div class="sub" id="page-sub">Відкриті дані про виконання кожним органом сектору безпеки і оборони України</div>
+    </div>
+    <div class="hd-right">
+      <div class="lang">
+        <button id="lang-ua" onclick="setLang('ua')">UA</button>
+        <button id="lang-en" onclick="setLang('en')">EN</button>
+      </div>
+      <span class="pub-badge" id="pub-badge">🌐 Публічний доступ</span>
+    </div>
+  </div>
+</header>
+
+<div class="summary-bar">
+  <div class="wrap">
+    <div class="sum-pills" id="sum-pills"></div>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="legend" id="legend"></div>
+  <div class="matrix-wrap">
+    <table id="matrix-table">
+      <thead id="matrix-head"></thead>
+      <tbody id="matrix-body"></tbody>
+    </table>
+  </div>
+</main>
+
+<div class="popup-overlay" id="popup-overlay" onclick="if(event.target===this)closePopup()">
+  <div class="popup" id="popup"></div>
+</div>
+
+<footer><div class="wrap">Дані оновлюються в реальному часі · iior0204-ua · УЗК НПУ · NATO Building Integrity · <span id="last-upd"></span></div></footer>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, onSnapshot, query, where }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAeZmRx0Ctr_s4TWvgXkux93GdfDO6SAtM",
+  authDomain: "iior0204-ua.firebaseapp.com",
+  projectId: "iior0204-ua",
+  storageBucket: "iior0204-ua.firebasestorage.app",
+  messagingSenderId: "415086289843",
+  appId: "1:415086289843:web:b5be981bf866d67e2ae1c6"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+// ── DATA ──────────────────────────────────────────────────────────────────
+const TASKS = [
+  {id:"1",title:{ua:"Імплементація антикорупційного законодавства СБО та Антикорупційної стратегії",en:"Implementation of SDS anti-corruption legislation and Anti-Corruption Strategy"},deadline:{ua:"до поч. 2026",en:"by start 2026"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","MDT","NACS","NSDC","MES","ME","SSAU","SGCC"]},
+  {id:"2",title:{ua:"Впровадження комплексних антикорупційних програм з урахуванням рекомендацій НАТО (Звіт 2019)",en:"Implementation of comprehensive Integrity Plans with NATO BI recommendations (2019 Report)"},deadline:{ua:"до поч. 2025",en:"by start 2025"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SSU","NABU","VRU"]},
+  {id:"3",title:{ua:"Регулярна самооцінка НАТО з виховання доброчесності (після завершення ВС)",en:"Regular NATO-BI Self-Assessments (after martial law)"},deadline:{ua:"після ВС",en:"after ML"},bodies:["NACP"]},
+  {id:"4",title:{ua:"Навчальні курси та освітні програми з розбудови доброчесності",en:"BI training courses and education programmes"},deadline:{ua:"до поч. 2025",en:"by start 2025"},bodies:["MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NACS","NSDC"]},
+  {id:"5a",title:{ua:"Система оцінки персоналу — прозорість при призначенні та просуванні",en:"Personnel evaluation system — transparency in assignment and promotion"},deadline:{ua:"до поч. 2027",en:"by start 2027"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NACS","NSDC"]},
+  {id:"5b",title:{ua:"Контроль за призначенням та звільненням вищого керівництва СБО",en:"Scrutiny over senior leadership appointment and dismissal"},deadline:{ua:"до поч. 2027",en:"by start 2027"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},
+  {id:"5c",title:{ua:"Призначення на ключові посади з урахуванням кваліфікації та перевірки доброчесності",en:"Assignment to key posts with qualification and integrity check requirements"},deadline:{ua:"до поч. 2027",en:"by start 2027"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},
+  {id:"5d",title:{ua:"Перевірка осіб на корупційно вразливих посадах та ротація персоналу",en:"Vetting for corruption-risk positions and personnel rotation"},deadline:{ua:"до поч. 2027",en:"by start 2027"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},
+  {id:"5e",title:{ua:"Комунікаційні механізми інформування персоналу про зміни в управлінні HR",en:"Communication mechanisms for HR changes"},deadline:{ua:"до поч. 2027",en:"by start 2027"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},
+  {id:"5f",title:{ua:"Повна автоматизація системи управління персоналом",en:"Full automatisation of personnel management systems"},deadline:{ua:"до поч. 2027",en:"by start 2027"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","UDI","NABU","NSDC"]},
+  {id:"6",title:{ua:"Система управління корупційними ризиками з реєстром ризиків",en:"Corruption risk management system with risk register"},deadline:{ua:"до поч. 2026",en:"by start 2026"},bodies:["NACP","MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NSDC"]},
+  {id:"7",title:{ua:"Розвиток культури доброчесності — Дисципліна НАТО у навчальних програмах СБО",en:"Integrity culture — NATO BI Discipline in SDS academic programmes"},deadline:{ua:"—",en:"—"},bodies:["MoD","MIA","NPU","NGU","SESU","SBGS","SMS","SSU","DSP","SSSCIP","FISU","UDI","NABU","NACS","NSDC","MVA"]}
+];
+
+const BODIES = {
+  NACP:{ua:'НАЗК',en:'NACP'},MoD:{ua:'МО',en:'MoD'},MIA:{ua:'МВС',en:'MIA'},
+  NPU:{ua:'НПУ',en:'NPU'},NGU:{ua:'НГУ',en:'NGU'},SESU:{ua:'ДСНС',en:'SESU'},
+  SBGS:{ua:'ДПСУ',en:'SBGS'},SMS:{ua:'ДМС',en:'SMS'},SSU:{ua:'СБУ',en:'SSU'},
+  DSP:{ua:'УДО',en:'DSP'},SSSCIP:{ua:'Спецзв.',en:'SSSCIP'},FISU:{ua:'СЗРУ',en:'FISU'},
+  UDI:{ua:'УОП',en:'UDI'},NABU:{ua:'НАБУ',en:'NABU'},MDT:{ua:'МЦ',en:'MDT'},
+  NACS:{ua:'НАДС',en:'NACS'},NSDC:{ua:'РНБО',en:'NSDC'},MES:{ua:'МОН',en:'MES'},
+  MVA:{ua:'МВ',en:'MVA'},VRU:{ua:'ВРУ',en:'VRU'},ME:{ua:'МЕ',en:'ME'},
+  SSAU:{ua:'ДКАУ',en:'SSAU'},SGCC:{ua:'ГК',en:'SGCC'}
+};
+
+// All unique bodies across all tasks
+const ALL_BODIES = [...new Set(TASKS.flatMap(t=>t.bodies))];
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let lang = localStorage.getItem('iior0204_lang')||'ua';
+let overallStatus = {};   // itemId → {status}
+let bodyStatus = {};      // itemId_body → {status, comment, progress, npuContribution, evidence, risks}
+
+function L(ua,en){ return lang==='ua'?ua:en; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function loading(show){ document.getElementById('loading').className=show?'':'hide'; }
+
+const STATUS_LABELS = {
+  ua:{green:'Відповідає',amber:'Частково',red:'Не відповідає',grey:'Відтерм.',none:'—'},
+  en:{green:'Green',amber:'Amber',red:'Red',grey:'Conditional',none:'—'}
+};
+const STATUS_LETTER = {green:'G',amber:'A',red:'R',grey:'C',none:'—'};
+
+// ── LOAD DATA ─────────────────────────────────────────────────────────────
+async function loadData(){
+  // Overall status
+  const snap1=await getDocs(collection(db,'iior_0204_current'));
+  overallStatus={};
+  snap1.forEach(d=>{ overallStatus[d.id]=d.data(); });
+
+  // Per-body status
+  const snap2=await getDocs(collection(db,'iior_0204_current_body'));
+  bodyStatus={};
+  snap2.forEach(d=>{ bodyStatus[d.id]=d.data(); });
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function render(){
+  document.documentElement.lang=lang==='ua'?'uk':'en';
+  document.getElementById('lang-ua').className=lang==='ua'?'on':'';
+  document.getElementById('lang-en').className=lang==='en'?'on':'';
+  document.getElementById('page-title').textContent=L(
+    'Стан виконання Уніфікованого плану заходів — IIOR 0204',
+    'Implementation Status of the Unified Action Plan — IIOR 0204');
+  document.getElementById('page-sub').textContent=L(
+    'Відкриті дані про виконання кожним органом сектору безпеки і оборони України',
+    'Open data on implementation by each body of the Ukrainian security and defence sector');
+  document.getElementById('pub-badge').textContent=L('🌐 Публічний доступ','🌐 Public access');
+  renderSummary(); renderLegend(); renderMatrix();
+  document.getElementById('last-upd').textContent=L('Оновлено: ','Updated: ')+new Date().toLocaleString(lang==='ua'?'uk-UA':'en-GB');
+}
+
+function renderSummary(){
+  const c={green:0,amber:0,red:0,grey:0,none:0};
+  TASKS.forEach(t=>{
+    const s=(overallStatus[t.id]?.status)||'none';
+    c[s]=(c[s]||0)+1;
+  });
+  document.getElementById('sum-pills').innerHTML=
+    [['green',c.green,L('Відповідає','Green')],
+     ['amber',c.amber,L('Частково','Amber')],
+     ['red',c.red,L('Не відповідає','Red')],
+     ['grey',c.grey,L('Відтерм.','Conditional')],
+     ['none',c.none,L('Не оцінено','Not assessed')]
+    ].map(([s,n,lbl])=>
+      '<div class="sp"><div class="dot" style="background:var(--'+s+')"></div>'+
+      '<span class="val">'+n+'</span><span class="lbl">'+esc(lbl)+'</span></div>'
+    ).join('')+
+    '<span class="last-upd" style="margin-left:auto;display:none" id="last-upd-pill"></span>';
+}
+
+function renderLegend(){
+  document.getElementById('legend').innerHTML=
+    [['green',L('Відповідає вимогам','Meets requirements')],
+     ['amber',L('Частково відповідає — проблеми вирішуються','Partially — challenges being resolved')],
+     ['red',L('Не відповідає / не буде виконано вчасно','Not met / will not be met in time')],
+     ['grey',L('Відтерміновано — виконання після ВС','Deferred — after martial law')],
+     ['none',L('Не оцінено НАЗК','Not yet assessed by NACP')]
+    ].map(([s,l])=>'<span><i style="background:var(--'+s+')"></i>'+esc(l)+'</span>').join('');
+}
+
+function renderMatrix(){
+  // Build list of bodies that appear in at least one task
+  const usedBodies=ALL_BODIES;
+
+  // HEAD
+  const head=document.getElementById('matrix-head');
+  head.innerHTML='<tr>'+
+    '<th class="task-col">'+L('Завдання','Objective')+'</th>'+
+    '<th class="body-col" title="'+L('Зведений статус','Overall status')+'">'+L('Зведений','Overall')+'</th>'+
+    usedBodies.map(b=>'<th class="body-col" title="'+(BODIES[b]?BODIES[b][lang]:b)+'">'+esc(BODIES[b]?BODIES[b][lang]:b)+'</th>').join('')+
+  '</tr>';
+
+  // BODY
+  const tbody=document.getElementById('matrix-body');
+  tbody.innerHTML=TASKS.map(task=>{
+    const overall=(overallStatus[task.id]?.status)||'none';
+    const taskBodies=task.bodies||[];
+    const cells=usedBodies.map(body=>{
+      if(!taskBodies.includes(body)){
+        return '<td class="status-cell"><div class="status-dot none" style="opacity:.18">·</div></td>';
+      }
+      const key=task.id+'_'+body;
+      const bs=bodyStatus[key];
+      const st=bs?.status||'none';
+      return '<td class="status-cell" onclick="showDetail(\''+task.id+'\',\''+body+'\')" title="'+
+        esc((BODIES[body]?BODIES[body][lang]:body)+' — '+STATUS_LABELS[lang][st])+'">'+
+        '<div class="status-dot '+st+'">'+STATUS_LETTER[st]+'</div></td>';
+    }).join('');
+    return '<tr>'+
+      '<td class="task-cell">'+
+        '<div class="task-id">'+task.id+'</div>'+
+        '<div class="task-title">'+esc(task.title[lang])+'</div>'+
+        '<div class="task-dl">⏱ '+esc(task.deadline[lang])+'</div>'+
+      '</td>'+
+      '<td class="overall-cell"><span class="overall-badge ob-'+overall+'">'+STATUS_LETTER[overall]+'</span></td>'+
+      cells+
+    '</tr>';
+  }).join('');
+}
+
+// ── DETAIL POPUP ──────────────────────────────────────────────────────────
+window.showDetail = function(taskId, body){
+  const key=taskId+'_'+body;
+  const bs=bodyStatus[key];
+  const task=TASKS.find(t=>t.id===taskId);
+  const bodyName=BODIES[body]?BODIES[body][lang]:body;
+  const st=bs?.status||'none';
+
+  const popup=document.getElementById('popup');
+  const RISK_LABELS={
+    ua:{personnel:'кадрові',regulatory:'нормативні',financial:'фінансові',technical:'технічні',martial:'воєнний стан'},
+    en:{personnel:'personnel',regulatory:'regulatory',financial:'financial',technical:'technical',martial:'martial law'}
+  };
+
+  let content='';
+  if(!bs||!bs.comment){
+    content='<p class="no-data">'+L('Дані не подані або ще не затверджені НАЗК','Data not submitted or not yet approved by NACP')+'</p>';
+  } else {
+    if(bs.comment) content+='<div class="popup-field"><label>'+L('Стан виконання','Implementation status')+'</label><p>'+esc(bs.comment)+'</p></div>';
+    if(bs.npuContribution) content+='<div class="popup-field"><label>'+L('Внесок НПУ','NPU contribution')+'</label><p>'+esc(bs.npuContribution)+'</p></div>';
+    if(bs.progress) content+='<div class="popup-field"><label>'+L('Прогрес','Progress')+'</label><p>'+bs.progress+'%</p></div>';
+    if(bs.risks&&bs.risks.length) content+='<div class="popup-field"><label>'+L('Ризики','Risks')+'</label><p>'+bs.risks.map(r=>RISK_LABELS[lang][r]).join(', ')+'</p></div>';
+    if(bs.evidence&&bs.evidence.length){
+      const evItems=bs.evidence.filter(e=>e.name||e.text).map(e=>
+        '<div class="ev-item">📎 '+esc((e.name||e.text)+(e.num?' №'+e.num:'')+(e.date?' від '+e.date:''))+'</div>'
+      ).join('');
+      if(evItems) content+='<div class="popup-field"><label>'+L('Підтвердні документи','Supporting documents')+'</label>'+evItems+'</div>';
+    }
+    const upd=bs.approvedAt?.toDate?.();
+    if(upd) content+='<div class="popup-field"><label>'+L('Затверджено НАЗК','Approved by NACP')+'</label><p>'+upd.toLocaleString(lang==='ua'?'uk-UA':'en-GB')+'</p></div>';
+  }
+
+  popup.innerHTML=
+    '<div class="popup-h">'+
+      '<div class="popup-tag t-'+st+'" style="background:var(--'+(st==='none'?'none':st)+')">'+taskId+'</div>'+
+      '<div><div class="popup-title">'+esc(task?task.title[lang].slice(0,120):'')+'</div></div>'+
+    '</div>'+
+    '<div class="popup-body-name">'+esc(bodyName)+' — '+esc(STATUS_LABELS[lang][st])+'</div>'+
+    content+
+    '<button class="popup-close" onclick="closePopup()">'+L('Закрити','Close')+'</button>';
+
+  document.getElementById('popup-overlay').classList.add('show');
+};
+window.closePopup = function(){ document.getElementById('popup-overlay').classList.remove('show'); };
+
+window.setLang = function(l){
+  lang=l; localStorage.setItem('iior0204_lang',l); render();
+};
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+(async ()=>{
+  loading(true);
+  try{
+    await loadData();
+    render();
+    // Real-time updates
+    onSnapshot(collection(db,'iior_0204_current'),snap=>{
+      snap.forEach(d=>{ overallStatus[d.id]=d.data(); });
+      renderMatrix(); renderSummary();
+    });
+    onSnapshot(collection(db,'iior_0204_current_body'),snap=>{
+      snap.forEach(d=>{ bodyStatus[d.id]=d.data(); });
+      renderMatrix();
+    });
+  }catch(e){
+    console.error(e);
+  }
+  loading(false);
+})();
+
+</script>
+</body>
+</html>
