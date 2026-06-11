@@ -381,8 +381,6 @@ let userProfile = null;
 let firestoreData = {};       // itemId → current approved doc
 let bodyStatusCache = {};     // itemId_body → per-body approved data
 let pendingCounts = {};       // itemId → count of pending submissions
-let submissionsCache = {};    // itemId → array of all submissions (reviewer only)
-let unsubSubmissions = null;  // unsubscribe handle for submissions snapshot
 
 // ── UTILS ─────────────────────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -425,16 +423,27 @@ async function loadCurrentData(){
   snap.forEach(d=>{ firestoreData[d.id]=d.data(); });
 }
 
-function rebuildSubmissionsState(){
+async function loadPendingCounts(){
+  if(!isReviewer()) return;
+  // No composite index — get all and filter client-side
+  const snap=await getDocs(collection(db,'iior_0204_submissions'));
   pendingCounts={};
-  for(const itemId in submissionsCache){
-    const cnt=submissionsCache[itemId].filter(s=>s.status==='pending').length;
-    if(cnt) pendingCounts[itemId]=cnt;
-  }
+  snap.forEach(d=>{
+    const data=d.data();
+    if(data.status==='pending'){
+      pendingCounts[data.itemId]=(pendingCounts[data.itemId]||0)+1;
+    }
+  });
 }
 
-function subsForItem(itemId){
-  const all=submissionsCache[itemId]||[];
+async function loadSubmissionsForItem(itemId){
+  // Only filter by itemId — no composite index needed
+  // Filter status client-side
+  const q=query(collection(db,'iior_0204_submissions'),
+    where('itemId','==',itemId));
+  const snap=await getDocs(q);
+  const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+  // Show pending first, then recent approved/returned for context
   return all
     .filter(s=>s.status==='pending'||s.status==='returned')
     .concat(all.filter(s=>s.status==='approved').slice(0,3))
@@ -442,28 +451,6 @@ function subsForItem(itemId){
       const ta=a.submittedAt?.toDate?.()?.getTime()||0;
       const tb=b.submittedAt?.toDate?.()?.getTime()||0;
       return tb-ta;
-    });
-}
-
-function subscribeSubmissions(){
-  if(unsubSubmissions){ try{ unsubSubmissions(); }catch(e){} unsubSubmissions=null; }
-  if(!isReviewer()) return;
-  unsubSubmissions=onSnapshot(collection(db,'iior_0204_submissions'),
-    snap=>{
-      submissionsCache={};
-      snap.forEach(d=>{
-        const data={id:d.id,...d.data()};
-        if(!submissionsCache[data.itemId]) submissionsCache[data.itemId]=[];
-        submissionsCache[data.itemId].push(data);
-      });
-      rebuildSubmissionsState();
-      const openIds=[...document.querySelectorAll('.card.open')].map(c=>c.id);
-      render();
-      openIds.forEach(i=>{ const c=document.getElementById(i); if(c)c.classList.add('open'); });
-    },
-    err=>{
-      console.error('Submissions listener error:',err);
-      toast(L('Помилка читання подань: ','Error reading submissions: ')+err.message,'err',6000);
     });
 }
 
@@ -540,8 +527,7 @@ onAuthStateChanged(auth, async (user)=>{
   loading(true);
   if(user){
     currentUser=user;
-    // force token refresh — без цього Custom Claims можуть бути з кеша
-    const tr=await user.getIdTokenResult(true);
+    const tr=await user.getIdTokenResult();
     const c=tr.claims;
     if(!c.active||!c.role){
       await signOut(auth);
@@ -558,8 +544,7 @@ onAuthStateChanged(auth, async (user)=>{
     rp.textContent=userProfile.role; rp.className='role-pill '+userProfile.role;
     await loadCurrentData();
     await loadBodyStatusCache();
-    // submissions для reviewer завантажуються через real-time підписку нижче
-    submissionsCache={}; pendingCounts={};
+    await loadPendingCounts();
     render();
     onSnapshot(collection(db,'iior_0204_current_body'),snap=>{
       snap.forEach(d=>{ bodyStatusCache[d.id]=d.data(); });
@@ -573,12 +558,8 @@ onAuthStateChanged(auth, async (user)=>{
       snap.forEach(d=>{ firestoreData[d.id]=d.data(); });
       render();
     });
-    // Підписка на подання — тільки для reviewer/superadmin
-    subscribeSubmissions();
   } else {
     currentUser=null; userProfile=null;
-    submissionsCache={}; pendingCounts={};
-    if(unsubSubmissions){ try{ unsubSubmissions(); }catch(e){} unsubSubmissions=null; }
     document.getElementById('auth-screen').classList.remove('hide');
     document.getElementById('logout-btn').style.display='none';
     document.getElementById('report-btn').style.display='none';
@@ -847,10 +828,7 @@ window.doSubmit = async function(id){
     const nc2=document.getElementById('nc-'+id); if(nc2) nc2.value='';
     document.getElementById('evl-'+id).innerHTML='';
     document.querySelectorAll('#rk-'+id+' input').forEach(i=>i.checked=false);
-  }catch(e){
-    console.error('submitReport error:',e);
-    toast(L('Помилка: ','Error: ')+(e.code||'')+' '+e.message,'err',6000);
-  }
+  }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err'); }
   loading(false);
 };
 
@@ -872,10 +850,9 @@ function reviewerPanel(d){
   const bodyKey=d.id+'_NACP'; // reviewer sees overall
   const isLocked = s.status==='green';
 
-  const subs=subsForItem(d.id);
   return '<div class="rev-panel" id="rp-'+d.id+'">'+
     '<h4>'+L('Подання органів','Body Submissions')+' — '+d.id+(pc?'<span class="pending-dot"></span>':'')+' </h4>'+
-    '<div id="subs-'+d.id+'">'+buildSubsHTML(subs,d.id)+'</div>'+
+    '<div id="subs-'+d.id+'"><div class="no-subs">'+L('Відкрийте завдання для завантаження подань','Open task to load submissions')+'</div></div>'+
     '<div class="status-setter" id="ss-'+d.id+'">'+
       '<div class="flabel" style="display:flex;align-items:center;gap:8px">'+
         L('Зведений статус завдання (встановлює НАЗК)','Overall task status (set by NACP)')+
@@ -888,9 +865,24 @@ function reviewerPanel(d){
   '</div>';
 }
 
-function buildSubsHTML(subs, itemId){
-  if(!subs.length) return '<div class="no-subs">'+L('Немає активних подань','No pending submissions')+'</div>';
-  return subs.map(sub=>{
+// Load submissions every time reviewer opens a card
+document.addEventListener('click', async (e)=>{
+  const ch=e.target.closest('.card-h');
+  if(!ch||!isReviewer()) return;
+  const card=ch.parentElement;
+  await new Promise(r=>setTimeout(r,60));
+  if(!card.classList.contains('open')) return;
+  const id=card.id.replace('card-','');
+  const subsEl=document.getElementById('subs-'+id);
+  if(!subsEl) return;
+  subsEl.innerHTML='<div class="no-subs">'+L('Завантаження...','Loading...')+'</div>';
+  const subs=await loadSubmissionsForItem(id);
+  renderSubsList(subsEl, subs, id);
+});
+
+function renderSubsList(el, subs, itemId){
+  if(!subs.length){ el.innerHTML='<div class="no-subs">'+L('Немає активних подань','No pending submissions')+'</div>'; return; }
+  el.innerHTML=subs.map(sub=>{
     const bodyName=BODIES[sub.body]?BODIES[sub.body][lang]:sub.body;
     const when=sub.submittedAt?.toDate?.()?.toLocaleString(lang==='ua'?'uk-UA':'en-GB')||'';
     const evList=(sub.evidence||[]).filter(e=>e.name).map(e=>'<li>'+esc(e.name)+(e.num?' №'+esc(e.num):'')+(e.date?' від '+esc(e.date):'')+'</li>').join('');
@@ -942,15 +934,18 @@ window.doApprove = async function(subId, itemId){
   if(!selectedStatus){ toast(L('Оберіть оцінку для цього органу','Select assessment for this body'),'err'); return; }
   loading(true);
   try{
-    const sub=(submissionsCache[itemId]||[]).find(s=>s.id===subId);
+    const subs=await loadSubmissionsForItem(itemId);
+    const sub=subs.find(s=>s.id===subId);
     if(!sub){ toast(L('Подання не знайдено','Submission not found'),'err'); loading(false); return; }
     if(sub.submittedBy===currentUser.uid){ toast(L('Не можна погоджувати власне подання','Cannot approve own submission'),'err'); loading(false); return; }
     const reviewerComment=document.getElementById('rc-'+subId)?.value.trim()||'';
     const progress=STATUS_PROGRESS[selectedStatus]||0;
+    // Update submission
     await updateDoc(doc(db,'iior_0204_submissions',subId),{
       status:'approved', approvedBy:currentUser.uid,
       approvedByEmail:currentUser.email, approvedAt:serverTimestamp()
     });
+    // Write per-body current record with reviewer's assessment
     await setDoc(doc(db,'iior_0204_current_body',itemId+'_'+sub.body),{
       itemId, body:sub.body,
       status:selectedStatus, progress,
@@ -961,10 +956,20 @@ window.doApprove = async function(subId, itemId){
       approvedByEmail:currentUser.email, approvedAt:serverTimestamp(),
       sourceSubmission:subId
     });
+    // Refresh bodyStatusCache
+    bodyStatusCache[itemId+'_'+sub.body]={
+      itemId, body:sub.body, status:selectedStatus, progress,
+      comment:reviewerComment||sub.comment||'',
+      approvedAt:new Date()
+    };
     delete subStatusSelected[subId];
     toast(L('✓ Затверджено. Оцінка: ','✓ Approved. Assessment: ')+selectedStatus.toUpperCase()+' ('+progress+'%)','ok');
-    // onSnapshot для submissions / current_body автоматично перерендерить UI
-  }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err',6000); console.error(e); }
+    const fresh=await loadSubmissionsForItem(itemId);
+    pendingCounts[itemId]=fresh.length;
+    const subsEl=document.getElementById('subs-'+itemId);
+    if(subsEl) renderSubsList(subsEl,fresh,itemId);
+    await loadCurrentData(); renderRibbon();
+  }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err'); }
   loading(false);
 };
 
@@ -979,8 +984,12 @@ window.doReturn = async function(subId, itemId){
       returnComment:cm.value.trim()
     });
     toast(L('Повернуто з коментарем','Returned with comment'),'info');
-    // onSnapshot перерендерить
-  }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err',6000); console.error(e); }
+    const fresh=await loadSubmissionsForItem(itemId);
+    pendingCounts[itemId]=fresh.length;
+    const subsEl=document.getElementById('subs-'+itemId);
+    if(subsEl) renderSubsList(subsEl,fresh,itemId);
+    renderRibbon();
+  }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err'); }
   loading(false);
 };
 
