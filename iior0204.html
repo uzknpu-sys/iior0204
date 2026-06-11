@@ -393,7 +393,18 @@ function loading(show){ document.getElementById('loading').className=show?'':'hi
 function L(ua,en){ return lang==='ua'?ua:en; }
 
 function getSt(id){ return firestoreData[id]||{status:'none',progress:0,comment:'',npuContribution:'',risks:[],evidence:[]}; }
-function effStatus(d){ const s=getSt(d.id); const st=s.status||'none'; return st==='none'&&d.conditional?'grey':st; }
+function effStatus(d){
+  // For executor — show their organ's approved status, not overall
+  if(isExecutor() && userProfile?.body){
+    const bodyKey=d.id+'_'+userProfile.body;
+    const bs=bodyStatusCache[bodyKey];
+    if(bs?.status) return bs.status;
+    return d.conditional?'grey':'none';
+  }
+  // For reviewer/superadmin — show overall status
+  const s=getSt(d.id); const st=s.status||'none';
+  return st==='none'&&d.conditional?'grey':st;
+}
 function isOverdue(d){ const s=effStatus(d); return d.deadlineYear&&d.deadlineYear<=new Date().getFullYear()&&s!=='green'&&s!=='none'&&s!=='grey'; }
 function isExecutor(){ return userProfile&&userProfile.role==='executor'; }
 function isReviewer(){ return userProfile&&(userProfile.role==='reviewer'||userProfile.role==='superadmin'); }
@@ -600,7 +611,8 @@ function renderRibbon(){
 
 function counts(){
   const c={green:0,amber:0,red:0,grey:0,none:0};
-  DATA.forEach(d=>c[effStatus(d)]++); return c;
+  const list=isExecutor()?myItems():DATA;
+  list.forEach(d=>c[effStatus(d)]++); return c;
 }
 
 function renderSummary(){
