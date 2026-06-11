@@ -414,17 +414,33 @@ async function loadCurrentData(){
 
 async function loadPendingCounts(){
   if(!isReviewer()) return;
-  const snap=await getDocs(query(collection(db,'iior_0204_submissions'),where('status','==','pending')));
+  // No composite index — get all and filter client-side
+  const snap=await getDocs(collection(db,'iior_0204_submissions'));
   pendingCounts={};
-  snap.forEach(d=>{ const id=d.data().itemId; pendingCounts[id]=(pendingCounts[id]||0)+1; });
+  snap.forEach(d=>{
+    const data=d.data();
+    if(data.status==='pending'){
+      pendingCounts[data.itemId]=(pendingCounts[data.itemId]||0)+1;
+    }
+  });
 }
 
 async function loadSubmissionsForItem(itemId){
-  // No orderBy to avoid composite index requirement
+  // Only filter by itemId — no composite index needed
+  // Filter status client-side
   const q=query(collection(db,'iior_0204_submissions'),
-    where('itemId','==',itemId), where('status','==','pending'));
+    where('itemId','==',itemId));
   const snap=await getDocs(q);
-  return snap.docs.map(d=>({id:d.id,...d.data()}));
+  const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+  // Show pending first, then recent approved/returned for context
+  return all
+    .filter(s=>s.status==='pending'||s.status==='returned')
+    .concat(all.filter(s=>s.status==='approved').slice(0,3))
+    .sort((a,b)=>{
+      const ta=a.submittedAt?.toDate?.()?.getTime()||0;
+      const tb=b.submittedAt?.toDate?.()?.getTime()||0;
+      return tb-ta;
+    });
 }
 
 async function submitReport(itemId, payload){
