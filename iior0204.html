@@ -412,9 +412,9 @@ async function loadPendingCounts(){
 }
 
 async function loadSubmissionsForItem(itemId){
+  // No orderBy to avoid composite index requirement
   const q=query(collection(db,'iior_0204_submissions'),
-    where('itemId','==',itemId), where('status','==','pending'),
-    orderBy('submittedAt','desc'));
+    where('itemId','==',itemId), where('status','==','pending'));
   const snap=await getDocs(q);
   return snap.docs.map(d=>({id:d.id,...d.data()}));
 }
@@ -757,7 +757,7 @@ function reviewerPanel(d){
     '</button>').join('');
   return '<div class="rev-panel" id="rp-'+d.id+'">'+
     '<h4>'+L('Подання органів','Body Submissions')+' — '+d.id+(pc?'<span class="pending-dot"></span>':'')+' </h4>'+
-    '<div id="subs-'+d.id+'"><div class="no-subs">'+L('Завантаження...','Loading...')+'</div></div>'+
+    '<div id="subs-'+d.id+'"><div class="no-subs">'+L('Відкрийте завдання для завантаження подань','Open task to load submissions')+'</div></div>'+
     '<div class="status-setter">'+
       '<div class="flabel">'+L('Зведений статус завдання (встановлює НАЗК)','Overall task status (set by NACP)')+'</div>'+
       '<div class="st-pick">'+stButtons+'</div>'+
@@ -767,17 +767,17 @@ function reviewerPanel(d){
   '</div>';
 }
 
-// Load submissions when card opens
+// Load submissions every time reviewer opens a card
 document.addEventListener('click', async (e)=>{
   const ch=e.target.closest('.card-h');
   if(!ch||!isReviewer()) return;
   const card=ch.parentElement;
+  await new Promise(r=>setTimeout(r,60));
+  if(!card.classList.contains('open')) return;
   const id=card.id.replace('card-','');
   const subsEl=document.getElementById('subs-'+id);
   if(!subsEl) return;
-  // Only load once per open
-  if(subsEl.dataset.loaded==='1') return;
-  subsEl.dataset.loaded='1';
+  subsEl.innerHTML='<div class="no-subs">Завантаження...</div>';
   const subs=await loadSubmissionsForItem(id);
   renderSubsList(subsEl, subs, id);
 });
