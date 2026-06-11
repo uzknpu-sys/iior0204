@@ -367,6 +367,7 @@ const BODIES = {
   SSAU:{ua:'ДКАУ',en:'SSAU'},SGCC:{ua:'Держгеокадастр',en:'SGCC'}
 };
 const RISKS = ['personnel','regulatory','financial','technical','martial'];
+const STATUS_PROGRESS = {none:0, grey:0, red:25, amber:50, green:100};
 const RISK_LABELS = {
   ua:{personnel:'кадрові',regulatory:'нормативні',financial:'фінансові',technical:'технічні',martial:'воєнний стан'},
   en:{personnel:'personnel',regulatory:'regulatory',financial:'financial',technical:'technical',martial:'martial law'}
@@ -378,6 +379,7 @@ let filt = {status:null,year:''};
 let currentUser = null;
 let userProfile = null;
 let firestoreData = {};       // itemId → current approved doc
+let bodyStatusCache = {};     // itemId_body → per-body approved data
 let pendingCounts = {};       // itemId → count of pending submissions
 
 // ── UTILS ─────────────────────────────────────────────────────────────────
@@ -398,6 +400,12 @@ function isReviewer(){ return userProfile&&(userProfile.role==='reviewer'||userP
 function myItems(){ return DATA.filter(d=>(d.bodies||[]).includes(userProfile?.body)); }
 
 // ── FIRESTORE ─────────────────────────────────────────────────────────────
+async function loadBodyStatusCache(){
+  const snap=await getDocs(collection(db,'iior_0204_current_body'));
+  bodyStatusCache={};
+  snap.forEach(d=>{ bodyStatusCache[d.id]=d.data(); });
+}
+
 async function loadCurrentData(){
   const snap=await getDocs(collection(db,'iior_0204_current'));
   firestoreData={};
@@ -508,8 +516,17 @@ onAuthStateChanged(auth, async (user)=>{
     const rp=document.getElementById('role-pill');
     rp.textContent=userProfile.role; rp.className='role-pill '+userProfile.role;
     await loadCurrentData();
+    await loadBodyStatusCache();
     await loadPendingCounts();
     render();
+    onSnapshot(collection(db,'iior_0204_current_body'),snap=>{
+      snap.forEach(d=>{ bodyStatusCache[d.id]=d.data(); });
+      // Re-render open cards for executor
+      if(isExecutor()){
+        const open=[...document.querySelectorAll('.card.open')].map(c=>c.id);
+        render(); open.forEach(i=>{ const c=document.getElementById(i); if(c)c.classList.add('open'); });
+      }
+    });
     onSnapshot(collection(db,'iior_0204_current'),snap=>{
       snap.forEach(d=>{ firestoreData[d.id]=d.data(); });
       render();
@@ -682,35 +699,72 @@ function renderCards(){
 
 // ── EXECUTOR FORM ─────────────────────────────────────────────────────────
 function execForm(d){
-  const s=getSt(d.id);
-  const risks=RISKS.map(r=>'<label class="rk"><input type="checkbox" data-risk="'+r+'" '+((s.risks||[]).includes(r)?'checked':'')+'>'+esc(RISK_LABELS[lang][r])+'</label>').join('');
-  const evRows=(s.evidence||[]).map(ev=>evRowHtml(ev)).join('');
-  const upd=s.updatedAt?(s.updatedAt.toDate?s.updatedAt.toDate():new Date(s.updatedAt)):null;
+  const bodyKey = d.id+'_'+userProfile.body;
+  const ap = bodyStatusCache[bodyKey] || null;
+  const apStatus = ap?.status || 'none';
+  const apProgress = STATUS_PROGRESS[apStatus] || 0;
+  const isComplete = apStatus === 'green';
+  const stLabel = {
+    ua:{none:'Не оцінено',grey:'Відтерм. (ВС)',red:'Не відповідає',amber:'Частково відповідає',green:'Виконано ✓'},
+    en:{none:'Not assessed',grey:'Deferred (ML)',red:'Not met',amber:'Partially met',green:'Completed ✓'}
+  };
+  const stColor = {none:'var(--none)',grey:'var(--grey)',red:'var(--red)',amber:'var(--amber)',green:'var(--green)'};
+  const stBg = {none:'var(--none-bg)',grey:'var(--grey-bg)',red:'var(--red-bg)',amber:'var(--amber-bg)',green:'var(--green-bg)'};
+  const stBorder = {none:'var(--line)',grey:'var(--line)',red:'#f0b8b4',amber:'#e8c96a',green:'#b8dfc8'};
+
+  // NACP assessment block (always shown if data exists)
+  const assessBlock = ap ?
+    '<div style="background:'+stBg[apStatus]+';border:1.5px solid '+stBorder[apStatus]+';border-radius:8px;padding:14px 16px;margin-bottom:16px">'+
+      '<div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">'+L('Оцінка НАЗК','NACP Assessment')+'</div>'+
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">'+
+        '<span style="background:'+stColor[apStatus]+';color:#fff;font-family:var(--mono);font-weight:600;font-size:13px;border-radius:6px;padding:5px 14px">'+esc(stLabel[lang][apStatus])+'</span>'+
+        '<span style="font-family:var(--mono);font-weight:700;font-size:22px;color:'+stColor[apStatus]+'">'+apProgress+'%</span>'+
+      '</div>'+
+      '<div style="margin-bottom:6px">'+
+        '<div style="height:10px;background:rgba(0,0,0,.08);border-radius:5px;overflow:hidden">'+
+          '<div style="width:'+apProgress+'%;height:100%;background:'+stColor[apStatus]+';border-radius:5px;transition:width .6s ease"></div>'+
+        '</div>'+
+      '</div>'+
+      (ap.comment?'<div style="font-size:12.5px;color:var(--muted);margin-top:8px;border-top:1px solid rgba(0,0,0,.06);padding-top:8px">'+
+        '<b style="color:var(--ink)">'+L('Коментар НАЗК:','NACP comment:')+'</b> '+esc(ap.comment)+'</div>':'')+
+      (ap.approvedAt?'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px">'+
+        L('Оцінено:','Assessed:')+' '+(ap.approvedAt.toDate?ap.approvedAt.toDate().toLocaleString(lang==='ua'?'uk-UA':'en-GB'):new Date(ap.approvedAt).toLocaleString())+'</div>':'')+
+    '</div>'
+    : '<div style="background:var(--none-bg);border:1px dashed var(--line);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--muted)">'+
+        L('НАЗК ще не оцінило це завдання для вашого органу','NACP has not yet assessed this task for your body')+
+      '</div>';
+
+  // Completed — no more submissions
+  if(isComplete){
+    return '<div class="exec-form" id="ef-'+d.id+'">'+assessBlock+
+      '<div style="background:var(--green-bg);border:1px solid #b8dfc8;border-radius:8px;padding:16px;text-align:center">'+
+        '<div style="font-size:15px;font-weight:700;color:var(--green)">✓ '+L('Завдання виконано повністю','Task fully completed')+'</div>'+
+        '<div style="font-size:12.5px;color:var(--muted);margin-top:5px">'+L('Подання нових звітів недоступне','New submissions are disabled')+'</div>'+
+      '</div></div>';
+  }
+
+  const risks=RISKS.map(r=>'<label class="rk"><input type="checkbox" data-risk="'+r+'">'+esc(RISK_LABELS[lang][r])+'</label>').join('');
+  const subHeading = ap
+    ? L('Додаткове повідомлення про виконання','Additional implementation update')
+    : L('Звітування про виконання','Implementation report');
+
   return '<div class="exec-form" id="ef-'+d.id+'">'+
-    '<h4>'+L('Звітування НПУ — Завдання','NPU Reporting — Objective')+' '+d.id+'</h4>'+
+    assessBlock+
+    '<div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--navy);margin-bottom:12px;padding-top:4px;border-top:1px solid var(--line)">'+esc(subHeading)+'</div>'+
     '<div class="form-group">'+
       '<label>'+L('Стан виконання заходу','Implementation status')+'</label>'+
-      '<textarea id="cm-'+d.id+'" placeholder="'+L('Опишіть що зроблено, які результати досягнуто...','Describe what has been done and results achieved...')+'">'+esc(s.comment||'')+'</textarea>'+
+      '<textarea id="cm-'+d.id+'" placeholder="'+L('Опишіть що зроблено, які результати досягнуто...','Describe what has been done and results achieved...')+'"></textarea>'+
     '</div>'+
     (d.npu?'<div class="form-group"><label>'+L('Внесок НПУ (конкретні дії поліції)','NPU contribution (specific police actions)')+'</label>'+
-      '<textarea id="nc-'+d.id+'" placeholder="'+L('Що саме зробила Національна поліція...','What specifically the National Police did...')+'">'+esc(s.npuContribution||'')+'</textarea></div>':'')+
-    '<div class="frow"><label>'+L('Прогрес виконання','Progress')+'</label>'+
-      '<input type="range" min="0" max="100" step="5" value="'+(s.progress||0)+'" oninput="this.nextElementSibling.textContent=this.value+\'%\'" id="pr-'+d.id+'">'+
-      '<span class="pv">'+(s.progress||0)+'%</span></div>'+
+      '<textarea id="nc-'+d.id+'" placeholder="'+L('Що саме зробила Національна поліція...','What specifically the National Police did...')+'"></textarea></div>':'')+
     '<div class="flabel">'+L('Ризики виконання','Implementation risks')+'</div>'+
     '<div class="risk-pick" id="rk-'+d.id+'">'+risks+'</div>'+
     '<div class="flabel">'+L('Підтвердні документи','Supporting documents')+'</div>'+
-    '<div class="ev-header">'+
-      '<span>'+L('Назва документа / URL','Document name / URL')+'</span>'+
-      '<span>'+L('Номер','Number')+'</span>'+
-      '<span>'+L('Дата','Date')+'</span>'+
-      '<span></span>'+
-    '</div>'+
-    '<div id="evl-'+d.id+'">'+evRows+'</div>'+
+    '<div class="ev-header"><span>'+L('Назва документа / URL','Document name / URL')+'</span><span>'+L('Номер','Number')+'</span><span>'+L('Дата','Date')+'</span><span></span></div>'+
+    '<div id="evl-'+d.id+'"></div>'+
     '<button class="add-ev-btn" onclick="addEv(\''+d.id+'\')">+ '+L('Додати документ','Add document')+'</button>'+
-    '<button class="submit-btn" onclick="doSubmit(\''+d.id+'\')">'+L('Подати на погодження','Submit for approval')+'</button>'+
+    '<button class="submit-btn" onclick="doSubmit(\''+d.id+'\')">'+esc(ap ? L('Подати додаткову інформацію','Submit additional update') : L('Подати на погодження','Submit for approval'))+'</button>'+
     '<span class="saved-note" id="sv-'+d.id+'">✓ '+L('Подано','Submitted')+'</span>'+
-    (upd?'<div class="upd-note">'+L('Останнє оновлення','Last updated')+': '+upd.toLocaleString(lang==='ua'?'uk-UA':'en-GB')+'</div>':'')+
   '</div>';
 }
 
@@ -730,7 +784,6 @@ window.doSubmit = async function(id){
   if(!comment){ toast(L('Заповніть стан виконання заходу','Please fill in the implementation status'),'err'); return; }
   const nc=document.getElementById('nc-'+id);
   const npuContribution=nc?nc.value.trim():'';
-  const progress=+(document.getElementById('pr-'+id)?.value||0);
   const risks=[...document.querySelectorAll('#rk-'+id+' input:checked')].map(i=>i.dataset.risk);
   const evidence=[...document.querySelectorAll('#evl-'+id+' .ev-row')].map(r=>({
     name:r.querySelector('.ev-name')?.value.trim()||'',
@@ -739,9 +792,14 @@ window.doSubmit = async function(id){
   })).filter(e=>e.name);
   loading(true);
   try{
-    await submitReport(id,{status_val:'none',progress,comment,npuContribution,risks,evidence});
+    await submitReport(id,{progress:0,comment,npuContribution,risks,evidence});
     toast(L('✓ Подано на погодження до НАЗК','✓ Submitted for NACP approval'),'ok');
     const n=document.getElementById('sv-'+id); if(n){n.classList.add('show');setTimeout(()=>n.classList.remove('show'),2500);}
+    // Clear form
+    const cm=document.getElementById('cm-'+id); if(cm) cm.value='';
+    const nc2=document.getElementById('nc-'+id); if(nc2) nc2.value='';
+    document.getElementById('evl-'+id).innerHTML='';
+    document.querySelectorAll('#rk-'+id+' input').forEach(i=>i.checked=false);
   }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err'); }
   loading(false);
 };
@@ -750,18 +808,30 @@ window.doSubmit = async function(id){
 function reviewerPanel(d){
   const s=getSt(d.id);
   const pc=pendingCounts[d.id]||0;
-  const stButtons=['green','amber','red','grey','none'].map(k=>
-    '<button class="stb '+k+(s.status===k?' sel':'')+'" onclick="setOverallStatus(\''+d.id+'\',\''+k+'\')">'+
-    esc(L({green:'Відповідає',amber:'Частково',red:'Не відповідає',grey:'Відтерм.',none:'Не оцінено'}[k],
-         {green:'Green',amber:'Amber',red:'Red',grey:'Conditional',none:'Not assessed'}[k]))+
-    '</button>').join('');
+  // Status buttons with auto-progress display
+  const stButtons=['green','amber','red','grey','none'].map(k=>{
+    const pct = STATUS_PROGRESS[k];
+    const label = L({green:'Відповідає',amber:'Частково',red:'Не відповідає',grey:'Відтерм.',none:'Не оцінено'}[k],
+                    {green:'Green',amber:'Amber',red:'Red',grey:'Conditional',none:'Not assessed'}[k]);
+    return '<button class="stb '+k+(s.status===k?' sel':'')+'" onclick="setOverallStatus(\''+d.id+'\',\''+k+'\')">'+
+      esc(label)+(pct!==undefined?' <span style="opacity:.7;font-size:10px">'+pct+'%</span>':'')+
+    '</button>';
+  }).join('');
+
+  // Edit lock — if green, show pencil to re-enable
+  const bodyKey=d.id+'_NACP'; // reviewer sees overall
+  const isLocked = s.status==='green';
+
   return '<div class="rev-panel" id="rp-'+d.id+'">'+
     '<h4>'+L('Подання органів','Body Submissions')+' — '+d.id+(pc?'<span class="pending-dot"></span>':'')+' </h4>'+
     '<div id="subs-'+d.id+'"><div class="no-subs">'+L('Відкрийте завдання для завантаження подань','Open task to load submissions')+'</div></div>'+
-    '<div class="status-setter">'+
-      '<div class="flabel">'+L('Зведений статус завдання (встановлює НАЗК)','Overall task status (set by NACP)')+'</div>'+
-      '<div class="st-pick">'+stButtons+'</div>'+
-      '<button class="submit-btn" onclick="doSaveStatus(\''+d.id+'\')">'+L('Зберегти статус','Save status')+'</button>'+
+    '<div class="status-setter" id="ss-'+d.id+'">'+
+      '<div class="flabel" style="display:flex;align-items:center;gap:8px">'+
+        L('Зведений статус завдання (встановлює НАЗК)','Overall task status (set by NACP)')+
+        (isLocked?'<button onclick="unlockStatus(\''+d.id+'\')" style="background:none;border:1px solid var(--line);border-radius:4px;font-size:11px;padding:2px 8px;cursor:pointer;color:var(--muted)">✏️ '+L('Коригувати','Edit')+'</button>':'')+
+      '</div>'+
+      '<div class="st-pick" id="stp-'+d.id+'"'+(isLocked?' style="opacity:.5;pointer-events:none"':'')+'>'+stButtons+'</div>'+
+      '<button class="submit-btn" id="ssb-'+d.id+'" onclick="doSaveStatus(\''+d.id+'\')"'+(isLocked?' disabled':'')+'>'+L('Зберегти статус','Save status')+'</button>'+
       '<span class="saved-note" id="sv-r-'+d.id+'">✓ '+L('Збережено','Saved')+'</span>'+
     '</div>'+
   '</div>';
@@ -777,7 +847,7 @@ document.addEventListener('click', async (e)=>{
   const id=card.id.replace('card-','');
   const subsEl=document.getElementById('subs-'+id);
   if(!subsEl) return;
-  subsEl.innerHTML='<div class="no-subs">Завантаження...</div>';
+  subsEl.innerHTML='<div class="no-subs">'+L('Завантаження...','Loading...')+'</div>';
   const subs=await loadSubmissionsForItem(id);
   renderSubsList(subsEl, subs, id);
 });
@@ -797,38 +867,80 @@ function renderSubsList(el, subs, itemId){
       '<div class="sub-content">'+
         (sub.comment?'<div><b>'+L('Стан виконання:','Implementation:')+'</b><br>'+esc(sub.comment)+'</div>':'')+
         (sub.npuContribution?'<div style="margin-top:6px"><b>'+L('Внесок НПУ:','NPU contribution:')+'</b><br>'+esc(sub.npuContribution)+'</div>':'')+
-        (sub.progress?'<div style="margin-top:4px"><b>'+L('Прогрес:','Progress:')+'</b> '+sub.progress+'%</div>':'')+
         ((sub.risks&&sub.risks.length)?'<div style="margin-top:4px"><b>'+L('Ризики:','Risks:')+'</b> '+sub.risks.map(r=>RISK_LABELS[lang][r]).join(', ')+'</div>':'')+
         (evList?'<div style="margin-top:6px"><b>'+L('Документи:','Documents:')+'</b><ul class="ev-list">'+evList+'</ul></div>':'')+
       '</div>'+
+      // Reviewer sets color per body when approving
+      '<div style="margin-bottom:10px">'+
+        '<div class="flabel" style="margin-bottom:6px">'+L('Оцінка для цього органу:','Assessment for this body:')+'</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap" id="ast-'+sub.id+'">'+
+          ['green','amber','red','grey'].map(k=>{
+            const pct=STATUS_PROGRESS[k];
+            const lbl=L({green:'Відповідає',amber:'Частково',red:'Не відповідає',grey:'Відтерм.'}[k],
+                        {green:'Green',amber:'Amber',red:'Red',grey:'Conditional'}[k]);
+            return '<button class="stb '+k+'" onclick="selectSubStatus(\''+sub.id+'\',\''+k+'\')" id="asb-'+sub.id+'-'+k+'">'+esc(lbl)+' <span style="opacity:.7;font-size:10px">'+pct+'%</span></button>';
+          }).join('')+
+        '</div>'+
+      '</div>'+
       '<div class="rev-actions">'+
-        '<textarea id="rc-'+sub.id+'" placeholder="'+L('Причина повернення (обов\'язково для повернення)','Return reason (required to return)')+'"></textarea>'+
+        '<textarea id="rc-'+sub.id+'" placeholder="'+L('Коментар / причина повернення (обов\'язково для повернення)','Comment / return reason (required to return)')+'"></textarea>'+
         '<button class="approve-btn" onclick="doApprove(\''+sub.id+'\',\''+itemId+'\')">'+L('Затвердити','Approve')+'</button>'+
-        '<button class="return-btn" id="rb-'+sub.id+'" onclick="doReturn(\''+sub.id+'\',\''+itemId+'\')">'+L('Повернути','Return')+'</button>'+
+        '<button class="return-btn" onclick="doReturn(\''+sub.id+'\',\''+itemId+'\')">'+L('Повернути','Return')+'</button>'+
       '</div>'+
     '</div>';
   }).join('');
 }
 
+// Track selected per-body status for each submission
+const subStatusSelected = {};
+window.selectSubStatus = function(subId, st){
+  subStatusSelected[subId]=st;
+  ['green','amber','red','grey'].forEach(k=>{
+    const btn=document.getElementById('asb-'+subId+'-'+k);
+    if(btn){ btn.classList.toggle('sel', k===st); }
+  });
+};
+
 window.doApprove = async function(subId, itemId){
-  const subsEl=document.getElementById('subs-'+itemId);
-  const subEl=document.getElementById('si-'+subId);
-  if(!subEl) return;
-  // Reconstruct sub object from DOM (simplified — reload from Firestore)
+  const selectedStatus = subStatusSelected[subId];
+  if(!selectedStatus){ toast(L('Оберіть оцінку для цього органу','Select assessment for this body'),'err'); return; }
   loading(true);
   try{
     const subs=await loadSubmissionsForItem(itemId);
     const sub=subs.find(s=>s.id===subId);
     if(!sub){ toast(L('Подання не знайдено','Submission not found'),'err'); loading(false); return; }
-    const ok=await approveSubmission(subId,sub,null);
-    if(ok){
-      toast(L('✓ Подання затверджено','✓ Submission approved'),'ok');
-      // Reload subs
-      const fresh=await loadSubmissionsForItem(itemId);
-      pendingCounts[itemId]=fresh.length;
-      if(subsEl){ subsEl.dataset.loaded='1'; renderSubsList(subsEl,fresh,itemId); }
-      await loadCurrentData(); renderRibbon();
-    }
+    if(sub.submittedBy===currentUser.uid){ toast(L('Не можна погоджувати власне подання','Cannot approve own submission'),'err'); loading(false); return; }
+    const reviewerComment=document.getElementById('rc-'+subId)?.value.trim()||'';
+    const progress=STATUS_PROGRESS[selectedStatus]||0;
+    // Update submission
+    await updateDoc(doc(db,'iior_0204_submissions',subId),{
+      status:'approved', approvedBy:currentUser.uid,
+      approvedByEmail:currentUser.email, approvedAt:serverTimestamp()
+    });
+    // Write per-body current record with reviewer's assessment
+    await setDoc(doc(db,'iior_0204_current_body',itemId+'_'+sub.body),{
+      itemId, body:sub.body,
+      status:selectedStatus, progress,
+      comment:reviewerComment||sub.comment||'',
+      npuContribution:sub.npuContribution||'',
+      risks:sub.risks||[], evidence:sub.evidence||[],
+      updatedAt:serverTimestamp(), approvedBy:currentUser.uid,
+      approvedByEmail:currentUser.email, approvedAt:serverTimestamp(),
+      sourceSubmission:subId
+    });
+    // Refresh bodyStatusCache
+    bodyStatusCache[itemId+'_'+sub.body]={
+      itemId, body:sub.body, status:selectedStatus, progress,
+      comment:reviewerComment||sub.comment||'',
+      approvedAt:new Date()
+    };
+    delete subStatusSelected[subId];
+    toast(L('✓ Затверджено. Оцінка: ','✓ Approved. Assessment: ')+selectedStatus.toUpperCase()+' ('+progress+'%)','ok');
+    const fresh=await loadSubmissionsForItem(itemId);
+    pendingCounts[itemId]=fresh.length;
+    const subsEl=document.getElementById('subs-'+itemId);
+    if(subsEl) renderSubsList(subsEl,fresh,itemId);
+    await loadCurrentData(); renderRibbon();
   }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err'); }
   loading(false);
 };
@@ -838,12 +950,16 @@ window.doReturn = async function(subId, itemId){
   if(!cm||!cm.value.trim()){ toast(L('Введіть причину повернення','Enter return reason'),'err'); return; }
   loading(true);
   try{
-    await returnSubmission(subId, cm.value);
+    await updateDoc(doc(db,'iior_0204_submissions',subId),{
+      status:'returned', returnedBy:currentUser.uid,
+      returnedByEmail:currentUser.email, returnedAt:serverTimestamp(),
+      returnComment:cm.value.trim()
+    });
     toast(L('Повернуто з коментарем','Returned with comment'),'info');
-    const subsEl=document.getElementById('subs-'+itemId);
     const fresh=await loadSubmissionsForItem(itemId);
     pendingCounts[itemId]=fresh.length;
-    if(subsEl){ subsEl.dataset.loaded='1'; renderSubsList(subsEl,fresh,itemId); }
+    const subsEl=document.getElementById('subs-'+itemId);
+    if(subsEl) renderSubsList(subsEl,fresh,itemId);
     renderRibbon();
   }catch(e){ toast(L('Помилка: ','Error: ')+e.message,'err'); }
   loading(false);
@@ -856,12 +972,24 @@ window.setOverallStatus = function(itemId, st){
   render(); open.forEach(i=>{ const c=document.getElementById(i); if(c)c.classList.add('open'); });
 };
 
+window.unlockStatus = function(itemId){
+  const stp=document.getElementById('stp-'+itemId);
+  const btn=document.getElementById('ssb-'+itemId);
+  if(stp){ stp.style.opacity=''; stp.style.pointerEvents=''; }
+  if(btn){ btn.disabled=false; }
+};
+
 window.doSaveStatus = async function(itemId){
   const s=firestoreData[itemId]||{};
   if(!s.status||s.status==='none'){ toast(L('Оберіть статус','Select status'),'err'); return; }
   loading(true);
   try{
-    await saveOverallStatus(itemId, s.status);
+    await setDoc(doc(db,'iior_0204_current',itemId),{
+      id:itemId, status:s.status,
+      progress:STATUS_PROGRESS[s.status]||0,
+      updatedAt:serverTimestamp(),
+      approvedBy:currentUser.uid, approvedByEmail:currentUser.email, approvedAt:serverTimestamp()
+    },{merge:true});
     toast(L('✓ Статус збережено','✓ Status saved'),'ok');
     const n=document.getElementById('sv-r-'+itemId); if(n){n.classList.add('show');setTimeout(()=>n.classList.remove('show'),2000);}
     await loadCurrentData(); render();
